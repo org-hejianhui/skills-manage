@@ -70,6 +70,33 @@ const BROWSER_FIXTURE_AGENTS: AgentWithStatus[] = [
     is_builtin: true,
     is_enabled: true,
   },
+  {
+    id: "autoclaw",
+    display_name: "AutoClaw",
+    category: "lobster",
+    global_skills_dir: "/Users/browser/.autoclaw/skills/",
+    is_detected: true,
+    is_builtin: true,
+    is_enabled: true,
+  },
+  {
+    id: "easyclaw",
+    display_name: "EasyClaw",
+    category: "lobster",
+    global_skills_dir: "/Users/browser/.easyclaw/skills/",
+    is_detected: true,
+    is_builtin: true,
+    is_enabled: true,
+  },
+  {
+    id: "qoderwork",
+    display_name: "QoderWork",
+    category: "lobster",
+    global_skills_dir: "/Users/browser/.qoderwork/skills/",
+    is_detected: true,
+    is_builtin: true,
+    is_enabled: true,
+  },
 ];
 
 const BROWSER_FIXTURE_SKILLS: SkillWithLinks[] = [

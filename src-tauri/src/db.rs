@@ -1052,6 +1052,14 @@ pub fn builtin_agents() -> Vec<Agent> {
             None,
             "workbuddy",
         ),
+        agent(
+            "qoderwork",
+            "QoderWork",
+            "lobster",
+            ".qoderwork/skills",
+            None,
+            "qoderwork",
+        ),
         // ── Central Skills ────────────────────────────────────────────────────
         agent(
             "central",
@@ -2209,7 +2217,7 @@ mod tests {
     }
 
     #[test]
-    fn test_builtin_agents_have_expected_39_platform_skill_dirs() {
+    fn test_builtin_agents_have_expected_40_platform_skill_dirs() {
         let home = resolve_home_dir();
         let agents_by_id: std::collections::HashMap<String, Agent> = builtin_agents()
             .into_iter()
@@ -2341,6 +2349,7 @@ mod tests {
             ("neovate", "Neovate", ".neovate/skills", ".neovate/skills"),
             ("pochi", "Pochi", ".pochi/skills", ".pochi/skills"),
             ("adal", "AdaL", ".adal/skills", ".adal/skills"),
+            ("qoderwork", "QoderWork", ".qoderwork/skills", ".qoderwork/skills"),
         ];
 
         for (id, display_name, global_rel, project_rel) in expected {

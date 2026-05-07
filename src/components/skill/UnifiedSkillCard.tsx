@@ -20,7 +20,7 @@ import { InlineConfirmAction } from "@/components/ui/inline-confirm-action";
 import { PlatformIcon } from "@/components/platform/PlatformIcon";
 import type { AgentWithStatus, ClaudeSourceKind } from "@/types";
 import { cn } from "@/lib/utils";
-import { isInstallTargetAgent } from "@/lib/agents";
+import { isInstallTargetAgent, isVisibleLobsterAgent } from "@/lib/agents";
 
 const FEATURED_CODING_AGENT_IDS = [
   "trae-cn",
@@ -184,7 +184,7 @@ export function UnifiedSkillCard(props: UnifiedSkillCardProps) {
   );
 
   // Show all Lobster platforms, but only the highest-frequency Coding platforms.
-  const targetPlatformAgents = platformIcons?.agents.filter(isInstallTargetAgent) ?? [];
+  const targetPlatformAgents = platformIcons?.agents.filter(isInstallTargetAgent).filter(isVisibleLobsterAgent) ?? [];
   const lobsterAgents = targetPlatformAgents.filter((agent) => agent.category === "lobster");
   const codingAgents = targetPlatformAgents.filter((agent) => agent.category !== "lobster");
   const linkedAgentIds = new Set(platformIcons?.linkedAgents ?? []);
@@ -419,9 +419,9 @@ export function UnifiedSkillCard(props: UnifiedSkillCardProps) {
           </div>
 
           {/* Row 3: Platform toggles (central) */}
-          {hasPlatformIcons && (false && lobsterAgents.length > 0 || codingAgents.length > 0) && (
+          {hasPlatformIcons && (lobsterAgents.length > 0 || codingAgents.length > 0) && (
             <div className="mt-auto space-y-1 pt-1">
-              {false && lobsterAgents.length > 0 && (
+              {lobsterAgents.length > 0 && (
                 <div className="flex items-center gap-1.5">
                   <span className="w-14 shrink-0 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
                     {t("sidebar.categoryLobster")}

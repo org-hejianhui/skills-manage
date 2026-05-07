@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PlatformIcon } from "@/components/platform/PlatformIcon";
 import type { AgentWithStatus, SkillWithLinks } from "@/types";
-import { isInstallTargetAgent } from "@/lib/agents";
+import { isInstallTargetAgent, isVisibleLobsterAgent } from "@/lib/agents";
 import { cn } from "@/lib/utils";
 
 type PlatformDrawerTab = "installed" | "coding" | "lobster" | "shared";
@@ -45,7 +45,7 @@ export function PlatformInstallDrawer({
   const titleId = "platform-install-drawer-title";
 
   const targetAgents = useMemo(
-    () => agents.filter(isInstallTargetAgent),
+    () => agents.filter(isInstallTargetAgent).filter(isVisibleLobsterAgent),
     [agents]
   );
   const linkedAgentIds = useMemo(

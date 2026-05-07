@@ -15,6 +15,7 @@ import codexIcon from "@/assets/codex.png";
 import easyclawIcon from "@/assets/easyclaw.png";
 import openclawIcon from "@/assets/openclaw.png";
 import hermesIcon from "@/assets/hermes.png";
+import qoderworkIcon from "@/assets/qoderwork.png";
 
 // Lobehub real product icons (Mono variants — use currentColor)
 import GithubCopilotIcon from "@lobehub/icons/es/GithubCopilot/components/Mono";
@@ -60,6 +61,7 @@ const APP_ICONS: Record<string, { src: string; alt: string }> = {
   "easyclaw": { src: easyclawIcon, alt: "EasyClaw" },
   "openclaw": { src: openclawIcon, alt: "OpenClaw" },
   "hermes": { src: hermesIcon, alt: "Hermes" },
+  "qoderwork": { src: qoderworkIcon, alt: "QoderWork" },
 };
 
 type LobeIconProps = React.SVGProps<SVGSVGElement> & {

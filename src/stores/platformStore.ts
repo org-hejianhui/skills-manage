@@ -30,15 +30,45 @@ const BROWSER_FIXTURE_AGENTS: AgentWithStatus[] = [
     is_builtin: true,
     is_enabled: true,
   },
+  {
+    id: "autoclaw",
+    display_name: "AutoClaw",
+    category: "lobster",
+    global_skills_dir: "~/.autoclaw/skills/",
+    is_detected: true,
+    is_builtin: true,
+    is_enabled: true,
+  },
+  {
+    id: "easyclaw",
+    display_name: "EasyClaw",
+    category: "lobster",
+    global_skills_dir: "~/.easyclaw/skills/",
+    is_detected: true,
+    is_builtin: true,
+    is_enabled: true,
+  },
+  {
+    id: "qoderwork",
+    display_name: "QoderWork",
+    category: "lobster",
+    global_skills_dir: "~/.qoderwork/skills/",
+    is_detected: true,
+    is_builtin: true,
+    is_enabled: true,
+  },
 ];
 
 const BROWSER_FIXTURE_COUNTS: ScanResult = {
   total_skills: 1,
-  agents_scanned: 3,
+  agents_scanned: 6,
   skills_by_agent: {
     "claude-code": 1,
     cursor: 1,
     central: 1,
+    autoclaw: 0,
+    easyclaw: 0,
+    qoderwork: 0,
   },
 };
 

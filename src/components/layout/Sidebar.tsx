@@ -5,7 +5,6 @@ import {
   Blocks,
   Layers,
   Radar,
-  Store,
   Eye,
   EyeOff,
   ChevronLeft,
@@ -18,7 +17,7 @@ import { useCollectionStore } from "@/stores/collectionStore";
 import { useDiscoverStore } from "@/stores/discoverStore";
 import { useObsidianStore } from "@/stores/obsidianStore";
 import { cn } from "@/lib/utils";
-import { isEnabledInstallTargetAgent } from "@/lib/agents";
+import { isEnabledInstallTargetAgent, VISIBLE_LOBSTER_AGENT_IDS } from "@/lib/agents";
 
 const OBSIDIAN_PLATFORM_ID = "obsidian";
 
@@ -149,7 +148,9 @@ export function Sidebar() {
   const platformAgents = agents.filter(
     (a) =>
       isEnabledInstallTargetAgent(a) &&
-      (showAllPlatforms || (skillsByAgent[a.id] ?? 0) > 0)
+      (showAllPlatforms ||
+        (skillsByAgent[a.id] ?? 0) > 0 ||
+        (a.category === "lobster" && VISIBLE_LOBSTER_AGENT_IDS.has(a.id)))
   );
   const lobsterAgents = platformAgents.filter((a) => a.category === "lobster");
   const codingAgents = platformAgents.filter((a) => a.category !== "lobster");
@@ -242,14 +243,7 @@ export function Sidebar() {
           count={totalDiscovered}
         />
 
-        {/* Marketplace */}
-        <NavItem
-          label={t("marketplace.title")}
-          isActive={pathname === "/marketplace"}
-          onClick={() => navigate("/marketplace")}
-          icon={<Store className="size-4" />}
-          expanded={expanded}
-        />
+
 
         {/* Collections */}
         <NavItem
@@ -309,7 +303,7 @@ export function Sidebar() {
             )}
 
             {/* Lobster agents */}
-            {false && lobsterAgents.length > 0 && (
+            {lobsterAgents.length > 0 && (
               <>
                 {expanded ? (
                   <div className="text-[10px] font-medium text-muted-foreground/70 uppercase tracking-wider px-2.5 pt-2 pb-1">
