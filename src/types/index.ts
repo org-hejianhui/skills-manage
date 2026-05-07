@@ -329,6 +329,7 @@ export interface GitHubSkillPreview {
   rootDirectory: string;
   skillDirectoryName: string;
   downloadUrl: string;
+  skillMdContent: string;
   conflict?: GitHubSkillConflict | null;
 }
 

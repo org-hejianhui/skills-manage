@@ -235,7 +235,7 @@ export function GitHubRepoImportWizard({
   }, [preview, selectedSkillPath]);
   const previewToolbarRepoHref = useMemo(() => {
     if (!preview) return null;
-    return `https://github.com/${preview.repo.owner}/${preview.repo.repo}`;
+    return preview.repo.normalizedUrl;
   }, [preview]);
 
   const blockingConflict = useMemo(() => {
@@ -487,6 +487,30 @@ export function GitHubRepoImportWizard({
     }));
   }
 
+  function handleSelectAll() {
+    if (!preview) return;
+    const newSelectionState = { ...selectionState };
+    preview.skills.forEach((skill) => {
+      newSelectionState[skill.sourcePath] = {
+        ...newSelectionState[skill.sourcePath],
+        selected: true,
+      };
+    });
+    setSelectionState(newSelectionState);
+  }
+
+  function handleDeselectAll() {
+    if (!preview) return;
+    const newSelectionState = { ...selectionState };
+    preview.skills.forEach((skill) => {
+      newSelectionState[skill.sourcePath] = {
+        ...newSelectionState[skill.sourcePath],
+        selected: false,
+      };
+    });
+    setSelectionState(newSelectionState);
+  }
+
   function startRenameEditing(skill: GitHubSkillPreview) {
     updateSelection(skill, {
       resolution: "rename",
@@ -593,7 +617,7 @@ export function GitHubRepoImportWizard({
             id="github-repo-url"
             value={repoUrl}
             onChange={(event) => onRepoUrlChange(event.target.value)}
-            placeholder="https://github.com/owner/repo"
+            placeholder="https://code.amh-group.com/owner/repo 或 https://github.com/owner/repo"
             className="flex-1"
           />
           <Button
@@ -1252,6 +1276,22 @@ export function GitHubRepoImportWizard({
                           count: preview.skills.length,
                         })}
                       </div>
+                      <div className="mt-2 flex justify-end gap-2">
+                        <button
+                          onClick={handleSelectAll}
+                          className="text-xs px-2 py-1 rounded border border-border/70 bg-background/80 hover:bg-muted/20 transition-colors text-foreground/80"
+                          type="button"
+                        >
+                          {t("marketplace.selectAll")}
+                        </button>
+                        <button
+                          onClick={handleDeselectAll}
+                          className="text-xs px-2 py-1 rounded border border-border/70 bg-background/80 hover:bg-muted/20 transition-colors text-foreground/80"
+                          type="button"
+                        >
+                          {t("marketplace.deselectAll")}
+                        </button>
+                      </div>
                     </div>
 
                     <div
@@ -1323,9 +1363,11 @@ export function GitHubRepoImportWizard({
                             (selectedPreviewSkill.conflict
                               ? "skip"
                               : "overwrite");
-                          const skillGithubHref = preview
-                            ? `https://github.com/${preview.repo.owner}/${preview.repo.repo}/blob/${preview.repo.branch}/${selectedPreviewSkill.sourcePath}`
-                            : null;
+                          const skillGithubHref = preview ? (
+                            preview.repo.normalizedUrl.includes("github.com")
+                              ? `${preview.repo.normalizedUrl}/blob/${preview.repo.branch}/${selectedPreviewSkill.sourcePath}`
+                              : `${preview.repo.normalizedUrl}/-/blob/${preview.repo.branch}/${selectedPreviewSkill.sourcePath}`
+                          ) : null;
                           const resolvedRenameId =
                             currentSelection?.renamedSkillId?.trim() ||
                             selectedPreviewSkill.skillId;
@@ -1562,10 +1604,10 @@ export function GitHubRepoImportWizard({
                                         rel="noreferrer"
                                         className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                                         aria-label={t(
-                                          "marketplace.githubImportOpenOnGithub",
+                                          "marketplace.githubImportOpenOnGitRepo",
                                         )}
                                         title={t(
-                                          "marketplace.githubImportOpenOnGithub",
+                                          "marketplace.githubImportOpenOnGitRepo",
                                         )}
                                       >
                                         <ExternalLink className="size-3.5" />

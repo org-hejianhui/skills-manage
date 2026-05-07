@@ -418,9 +418,9 @@ export function UnifiedSkillCard(props: UnifiedSkillCardProps) {
           </div>
 
           {/* Row 3: Platform toggles (central) */}
-          {hasPlatformIcons && (lobsterAgents.length > 0 || codingAgents.length > 0) && (
+          {hasPlatformIcons && (false && lobsterAgents.length > 0 || codingAgents.length > 0) && (
             <div className="mt-auto space-y-1 pt-1">
-              {lobsterAgents.length > 0 && (
+              {false && lobsterAgents.length > 0 && (
                 <div className="flex items-center gap-1.5">
                   <span className="w-14 shrink-0 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
                     {t("sidebar.categoryLobster")}

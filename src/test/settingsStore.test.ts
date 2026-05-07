@@ -377,4 +377,41 @@ describe("settingsStore", () => {
     expect(useSettingsStore.getState().githubPat).toBe("");
     expect(useSettingsStore.getState().isSavingGitHubPat).toBe(false);
   });
+
+  it("loadGitlabToken reads the saved gitlab_token setting", async () => {
+    vi.mocked(invoke).mockResolvedValueOnce(" glpat_123 ");
+
+    await useSettingsStore.getState().loadGitlabToken();
+
+    expect(invoke).toHaveBeenCalledWith("get_setting", { key: "gitlab_token" });
+    expect(useSettingsStore.getState().gitlabToken).toBe(" glpat_123 ");
+    expect(useSettingsStore.getState().isLoadingGitlabToken).toBe(false);
+  });
+
+  it("saveGitlabToken persists a trimmed gitlab_token setting", async () => {
+    vi.mocked(invoke).mockResolvedValueOnce(undefined);
+
+    await useSettingsStore.getState().saveGitlabToken("  glpat_abc  ");
+
+    expect(invoke).toHaveBeenCalledWith("set_setting", {
+      key: "gitlab_token",
+      value: "  glpat_abc  ",
+    });
+    expect(useSettingsStore.getState().gitlabToken).toBe("glpat_abc");
+    expect(useSettingsStore.getState().isSavingGitlabToken).toBe(false);
+  });
+
+  it("clearGitlabToken clears the saved gitlab_token setting", async () => {
+    useSettingsStore.setState({ gitlabToken: "glpat_abc" });
+    vi.mocked(invoke).mockResolvedValueOnce(undefined);
+
+    await useSettingsStore.getState().clearGitlabToken();
+
+    expect(invoke).toHaveBeenCalledWith("set_setting", {
+      key: "gitlab_token",
+      value: "",
+    });
+    expect(useSettingsStore.getState().gitlabToken).toBe("");
+    expect(useSettingsStore.getState().isSavingGitlabToken).toBe(false);
+  });
 });

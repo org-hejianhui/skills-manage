@@ -11,6 +11,9 @@ interface SettingsState {
   githubPat: string;
   isLoadingGitHubPat: boolean;
   isSavingGitHubPat: boolean;
+  gitlabToken: string;
+  isLoadingGitlabToken: boolean;
+  isSavingGitlabToken: boolean;
 
   // Actions — scan directories
   loadScanDirectories: () => Promise<void>;
@@ -23,7 +26,12 @@ interface SettingsState {
   saveGitHubPat: (value: string) => Promise<void>;
   clearGitHubPat: () => Promise<void>;
 
-  // Actions — custom agents
+  // Actions — GitLab Token
+  loadGitlabToken: () => Promise<void>;
+  saveGitlabToken: (value: string) => Promise<void>;
+  clearGitlabToken: () => Promise<void>;
+
+  // // Actions — custom agents
   addCustomAgent: (config: CustomAgentConfig) => Promise<AgentWithStatus>;
   updateCustomAgent: (agentId: string, config: UpdateCustomAgentConfig) => Promise<AgentWithStatus>;
   removeCustomAgent: (agentId: string) => Promise<void>;
@@ -40,6 +48,9 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   githubPat: "",
   isLoadingGitHubPat: false,
   isSavingGitHubPat: false,
+  gitlabToken: "",
+  isLoadingGitlabToken: false,
+  isSavingGitlabToken: false,
 
   // ── Scan Directories ───────────────────────────────────────────────────────
 
@@ -142,6 +153,58 @@ export const useSettingsStore = create<SettingsState>((set) => ({
       set({
         error: String(err),
         isSavingGitHubPat: false,
+      });
+      throw err;
+    }
+  },
+
+  // ── GitLab Token ───────────────────────────────────────────────────────────
+
+  loadGitlabToken: async () => {
+    set({ isLoadingGitlabToken: true, error: null });
+    try {
+      const value = await invoke<string | null>("get_setting", { key: "gitlab_token" });
+      set({
+        gitlabToken: value ?? "",
+        isLoadingGitlabToken: false,
+      });
+    } catch (err) {
+      set({
+        error: String(err),
+        isLoadingGitlabToken: false,
+      });
+    }
+  },
+
+  saveGitlabToken: async (value: string) => {
+    set({ isSavingGitlabToken: true, error: null });
+    try {
+      await invoke("set_setting", { key: "gitlab_token", value });
+      set({
+        gitlabToken: value.trim(),
+        isSavingGitlabToken: false,
+      });
+    } catch (err) {
+      set({
+        error: String(err),
+        isSavingGitlabToken: false,
+      });
+      throw err;
+    }
+  },
+
+  clearGitlabToken: async () => {
+    set({ isSavingGitlabToken: true, error: null });
+    try {
+      await invoke("set_setting", { key: "gitlab_token", value: "" });
+      set({
+        gitlabToken: "",
+        isSavingGitlabToken: false,
+      });
+    } catch (err) {
+      set({
+        error: String(err),
+        isSavingGitlabToken: false,
       });
       throw err;
     }

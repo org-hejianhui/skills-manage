@@ -20,7 +20,6 @@ pub struct GitHubRepoRef {
     pub repo: String,
     pub branch: String,
     pub normalized_url: String,
-    pub platform: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -51,7 +50,6 @@ pub struct GitHubSkillPreview {
     pub root_directory: String,
     pub skill_directory_name: String,
     pub download_url: String,
-    pub skill_md_content: String,
     pub conflict: Option<GitHubSkillConflict>,
 }
 
@@ -124,7 +122,6 @@ pub(crate) struct RemoteSkillCandidate {
     pub(crate) root_directory: String,
     pub(crate) skill_directory_name: String,
     pub(crate) download_url: String,
-    pub(crate) skill_md_content: String,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -133,7 +130,6 @@ struct GitHubRepoSnapshot {
 }
 
 const GITHUB_PAT_SETTING_KEY: &str = "github_pat";
-const GITLAB_TOKEN_SETTING_KEY: &str = "gitlab_token";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum GitHubAccessDenialKind {
@@ -243,19 +239,6 @@ const GITHUB_MIRROR_ENDPOINTS: &[GitHubMirrorEndpoint] = &[
     },
 ];
 
-#[derive(Debug, Clone, Copy)]
-struct GitLabEndpoint {
-    api_base: &'static str,
-    raw_base: &'static str,
-}
-
-const GITLAB_ENDPOINTS: &[GitLabEndpoint] = &[
-    GitLabEndpoint {
-        api_base: "https://code.amh-group.com/api/v4",
-        raw_base: "https://code.amh-group.com",
-    },
-];
-
 #[tauri::command]
 pub async fn preview_github_repo_import(
     state: State<'_, AppState>,
@@ -288,10 +271,9 @@ async fn preview_github_repo_import_impl(
     pool: &DbPool,
     repo_url: &str,
 ) -> Result<GitHubRepoPreview, String> {
-    let (_, _, platform) = parse_repo_url(repo_url)?;
-    let auth = get_auth_token_from_settings(pool, &platform).await?;
-    let repo_ref = resolve_repo_ref(repo_url, auth.as_deref()).await?;
-    let candidates = fetch_repo_skill_candidates(&repo_ref, auth.as_deref()).await?;
+    let auth = github_direct_auth_from_settings(pool).await?;
+    let repo = resolve_repo_ref(repo_url, auth.as_deref()).await?;
+    let candidates = fetch_repo_skill_candidates(&repo, auth.as_deref()).await?;
     let skills = build_preview_skills(pool, &candidates).await?;
 
     if skills.is_empty() {
@@ -301,7 +283,7 @@ async fn preview_github_repo_import_impl(
         );
     }
 
-    Ok(GitHubRepoPreview { repo: repo_ref, skills })
+    Ok(GitHubRepoPreview { repo, skills })
 }
 
 async fn import_github_repo_skills_impl(
@@ -323,8 +305,7 @@ async fn import_github_repo_skills_impl(
         },
     );
 
-    let (_, _, platform) = parse_repo_url(repo_url)?;
-    let auth = get_auth_token_from_settings(pool, &platform).await?;
+    let auth = github_direct_auth_from_settings(pool).await?;
     let repo = resolve_repo_ref(repo_url, auth.as_deref()).await?;
     let client = github_client()?;
     let snapshot = download_repo_snapshot(&client, &repo, auth.as_deref()).await?;
@@ -380,11 +361,9 @@ async fn import_github_repo_skills_impl(
             }
             DuplicateResolution::Overwrite => {
                 if let Some(existing) = db::get_skill_by_id(pool, &candidate.skill_id).await? {
-                    // Allow overwriting non-central skills with central ones
-                    // Only block overwriting central skills with other central skills
-                    if existing.is_central {
+                    if !existing.is_central {
                         return Err(format!(
-                            "Skill '{}' conflicts with an existing central record. Please use rename instead.",
+                            "Skill '{}' conflicts with a non-central record and cannot be overwritten safely.",
                             candidate.skill_id
                         ));
                     }
@@ -612,7 +591,6 @@ async fn build_preview_skills(
             root_directory: candidate.root_directory.clone(),
             skill_directory_name: candidate.skill_directory_name.clone(),
             download_url: candidate.download_url.clone(),
-            skill_md_content: candidate.skill_md_content.clone(),
             conflict,
         });
     }
@@ -623,91 +601,49 @@ pub(crate) async fn resolve_repo_ref(
     repo_url: &str,
     auth_token: Option<&str>,
 ) -> Result<GitHubRepoRef, String> {
-    let (owner, repo, platform) = parse_repo_url(repo_url)?;
-    
-    if platform == "gitlab" {
-        let client = github_client()?;
-        let endpoint = GITLAB_ENDPOINTS.first().expect("gitlab endpoint");
-        let encoded_owner = urlencoding::encode(&owner);
-        let encoded_repo = urlencoding::encode(&repo);
-        let api_url = format!("{}/projects/{}%2F{}", endpoint.api_base, encoded_owner, encoded_repo);
-        
-        let mut request = client.get(&api_url);
-        if let Some(token) = auth_token {
-            request = request.header("PRIVATE-TOKEN", token);
-        }
-        
-        let response = request.send().await.map_err(|e| e.to_string())?;
-        
-        if response.status() == reqwest::StatusCode::NOT_FOUND {
-            return Err("GitLab repository not found.".to_string());
-        }
-        if !response.status().is_success() {
-            let status = response.status();
-            let response_text = response.text().await.unwrap_or_else(|_| "Unable to read response body".to_string());
-            return Err(format!("Failed to inspect GitLab repository: HTTP {}. Response: {}", status, response_text));
-        }
-        
-        let payload: serde_json::Value = response.json().await.map_err(|e| e.to_string())?;
-        let branch = payload
-            .get("default_branch")
-            .and_then(|v| v.as_str())
-            .filter(|value| !value.is_empty())
-            .unwrap_or("main")
-            .to_string();
-        
-        Ok(GitHubRepoRef {
-            owner: owner.clone(),
-            repo: repo.clone(),
-            branch,
-            normalized_url: format!("https://code.amh-group.com/{}/{}", owner, repo),
-            platform: "gitlab".to_string(),
-        })
-    } else {
-        let client = github_client()?;
-        let response = send_github_request_with_fallback(
-            &client,
-            GitHubFetchSurface::Api,
-            |endpoint| {
-                github_endpoint_url(
-                    endpoint,
-                    GitHubFetchSurface::Api,
-                    &format!("/repos/{}/{}", owner, repo),
-                )
-            },
-            "Failed to inspect GitHub repository",
-            auth_token,
-        )
-        .await?;
+    let (owner, repo) = parse_github_url(repo_url)?;
+    let client = github_client()?;
+    let response = send_github_request_with_fallback(
+        &client,
+        GitHubFetchSurface::Api,
+        |endpoint| {
+            github_endpoint_url(
+                endpoint,
+                GitHubFetchSurface::Api,
+                &format!("/repos/{owner}/{repo}"),
+            )
+        },
+        "Failed to inspect GitHub repository",
+        auth_token,
+    )
+    .await?;
 
-        if response.status() == reqwest::StatusCode::NOT_FOUND {
-            return Err("GitHub repository not found.".to_string());
-        }
-        if !response.status().is_success() {
-            let status = response.status();
-            return Err(
-                classify_github_denial_response(response, "inspecting the repository")
-                    .await
-                    .unwrap_or_else(|| format!("Failed to inspect GitHub repository: HTTP {}", status)),
-            );
-        }
-
-        let payload: serde_json::Value = response.json().await.map_err(|e| e.to_string())?;
-        let branch = payload
-            .get("default_branch")
-            .and_then(|v| v.as_str())
-            .filter(|value| !value.is_empty())
-            .unwrap_or("main")
-            .to_string();
-
-        Ok(GitHubRepoRef {
-            owner: owner.clone(),
-            repo: repo.clone(),
-            branch,
-            normalized_url: format!("https://github.com/{owner}/{repo}"),
-            platform: "github".to_string(),
-        })
+    if response.status() == reqwest::StatusCode::NOT_FOUND {
+        return Err("GitHub repository not found.".to_string());
     }
+    if !response.status().is_success() {
+        let status = response.status();
+        return Err(
+            classify_github_denial_response(response, "inspecting the repository")
+                .await
+                .unwrap_or_else(|| format!("Failed to inspect GitHub repository: HTTP {}", status)),
+        );
+    }
+
+    let payload: serde_json::Value = response.json().await.map_err(|e| e.to_string())?;
+    let branch = payload
+        .get("default_branch")
+        .and_then(|v| v.as_str())
+        .filter(|value| !value.is_empty())
+        .unwrap_or("main")
+        .to_string();
+
+    Ok(GitHubRepoRef {
+        owner: owner.clone(),
+        repo: repo.clone(),
+        branch,
+        normalized_url: format!("https://github.com/{owner}/{repo}"),
+    })
 }
 
 pub(crate) async fn github_direct_auth_from_settings(
@@ -719,37 +655,6 @@ pub(crate) async fn github_direct_auth_from_settings(
         .filter(|token| !token.is_empty()))
 }
 
-pub(crate) async fn gitlab_direct_auth_from_settings(
-    pool: &DbPool,
-) -> Result<Option<String>, String> {
-    println!("gitlab_direct_auth_from_settings called, key: {}", GITLAB_TOKEN_SETTING_KEY);
-    let token = db::get_setting(pool, GITLAB_TOKEN_SETTING_KEY)
-        .await?
-        .map(|token| token.trim().to_string())
-        .filter(|token| !token.is_empty())
-        .map(|token| {
-            let token = token.trim();
-            if token.starts_with("glpat_") {
-                token[6..].to_string()
-            } else {
-                token.to_string()
-            }
-        });
-    Ok(token)
-}
-
-pub(crate) async fn get_auth_token_from_settings(
-    pool: &DbPool,
-    platform: &str,
-) -> Result<Option<String>, String> {
-    let token = if platform == "gitlab" {
-        gitlab_direct_auth_from_settings(pool).await
-    } else {
-        github_direct_auth_from_settings(pool).await
-    };
-    token
-}
-
 fn github_client() -> Result<reqwest::Client, String> {
     reqwest::Client::builder()
         .user_agent("skills-manage/0.9.1")
@@ -757,68 +662,36 @@ fn github_client() -> Result<reqwest::Client, String> {
         .map_err(|e| e.to_string())
 }
 
-fn parse_repo_url(url: &str) -> Result<(String, String, String), String> {
+fn parse_github_url(url: &str) -> Result<(String, String), String> {
     let trimmed = url.trim();
     let parsed =
-        reqwest::Url::parse(trimmed).map_err(|_| "Invalid repository URL.".to_string())?;
+        reqwest::Url::parse(trimmed).map_err(|_| "Invalid GitHub repository URL.".to_string())?;
 
     if parsed.scheme() != "https" {
-        return Err("Only https:// repository URLs are supported.".to_string());
+        return Err("Only https:// GitHub repository URLs are supported.".to_string());
     }
-
-    let host = parsed.host_str().unwrap_or("");
-    let platform = if host.contains("gitlab") || host.contains("code.amh-group.com") {
-        "gitlab".to_string()
-    } else if host.contains("github") {
-        "github".to_string()
-    } else {
-        return Err("Unsupported repository host. Only GitHub and GitLab are supported.".to_string());
-    };
+    if parsed.host_str() != Some("github.com") {
+        return Err("Only github.com repository URLs are supported.".to_string());
+    }
 
     let mut segments = parsed
         .path_segments()
-        .ok_or_else(|| "Invalid repository URL.".to_string())?;
-    
-    let (owner, repo) = if platform == "gitlab" {
-        let mut path_parts: Vec<String> = Vec::new();
-        while let Some(segment) = segments.next() {
-            if !segment.is_empty() {
-                path_parts.push(segment.to_string());
-            }
-        }
-        
-        if path_parts.is_empty() {
-            return Err("GitLab repository URL must include a project path.".to_string());
-        }
-        
-        let repo = path_parts.pop().unwrap();
-        let repo = repo.strip_suffix(".git").unwrap_or(&repo).to_string();
-        let owner = path_parts.join("/");
-        
-        if owner.is_empty() || repo.is_empty() {
-            return Err("GitLab repository URL is missing group or project.".to_string());
-        }
-        
-        (owner, repo)
-    } else {
-        let owner = segments
-            .next()
-            .filter(|segment| !segment.is_empty())
-            .ok_or_else(|| "Repository URL must include an owner.".to_string())?;
-        let repo = segments
-            .next()
-            .filter(|segment| !segment.is_empty())
-            .ok_or_else(|| "Repository URL must include a repository name.".to_string())?;
+        .ok_or_else(|| "Invalid GitHub repository URL.".to_string())?;
+    let owner = segments
+        .next()
+        .filter(|segment| !segment.is_empty())
+        .ok_or_else(|| "GitHub repository URL must include an owner.".to_string())?;
+    let repo = segments
+        .next()
+        .filter(|segment| !segment.is_empty())
+        .ok_or_else(|| "GitHub repository URL must include a repository name.".to_string())?;
 
-        let repo = repo.strip_suffix(".git").unwrap_or(repo);
-        if owner.is_empty() || repo.is_empty() {
-            return Err("Repository URL is missing owner or repository.".to_string());
-        }
-        
-        (owner.to_string(), repo.to_string())
-    };
+    let repo = repo.strip_suffix(".git").unwrap_or(repo);
+    if owner.is_empty() || repo.is_empty() {
+        return Err("GitHub repository URL is missing owner or repository.".to_string());
+    }
 
-    Ok((owner.to_lowercase(), repo.to_lowercase(), platform))
+    Ok((owner.to_lowercase(), repo.to_lowercase()))
 }
 
 pub(crate) async fn fetch_repo_skill_candidates(
@@ -835,7 +708,6 @@ fn build_repo_skill_candidates_from_snapshot(
     snapshot: &GitHubRepoSnapshot,
 ) -> Result<Vec<RemoteSkillCandidate>, String> {
     let direct_endpoint = GITHUB_MIRROR_ENDPOINTS.first().expect("github endpoint");
-    let gitlab_endpoint = GITLAB_ENDPOINTS.first().expect("gitlab endpoint");
     let mut manifests = snapshot
         .files
         .keys()
@@ -872,12 +744,6 @@ fn build_repo_skill_candidates_from_snapshot(
             sanitize_skill_id(&manifest.skill_directory_name)?
         };
 
-        let download_url = if repo.platform == "gitlab" {
-            gitlab_raw_file_url(gitlab_endpoint, repo, &manifest.skill_md_path)
-        } else {
-            raw_file_url(direct_endpoint, repo, &manifest.skill_md_path)
-        };
-
         candidates.push(RemoteSkillCandidate {
             source_path: manifest.source_path.clone(),
             skill_id,
@@ -889,8 +755,7 @@ fn build_repo_skill_candidates_from_snapshot(
             } else {
                 manifest.skill_directory_name
             },
-            download_url,
-            skill_md_content: content,
+            download_url: raw_file_url(direct_endpoint, repo, &manifest.skill_md_path),
         });
     }
 
@@ -961,40 +826,7 @@ async fn download_repository_archive(
     repo: &GitHubRepoRef,
     auth_token: Option<&str>,
 ) -> Result<Vec<u8>, String> {
-    if repo.platform == "gitlab" {
-        let endpoint = GITLAB_ENDPOINTS.first().expect("gitlab endpoint");
-        let encoded_owner = urlencoding::encode(&repo.owner);
-        let encoded_repo = urlencoding::encode(&repo.repo);
-        let archive_url = format!(
-            "{}/projects/{}%2F{}/repository/archive.tar.gz?ref={}",
-            endpoint.api_base, encoded_owner, encoded_repo, repo.branch
-        );
-        
-        let mut request = client.get(&archive_url);
-        if let Some(token) = auth_token {
-            request = request.header("PRIVATE-TOKEN", token);
-        }
-        
-        let response = request.send().await.map_err(|e| e.to_string())?;
-        
-        if response.status() == reqwest::StatusCode::NOT_FOUND {
-            return Err("GitLab repository archive is unavailable.".to_string());
-        }
-        if !response.status().is_success() {
-            let status = response.status();
-            return Err(format!(
-                "Failed to download GitLab repository archive: HTTP {}",
-                status
-            ));
-        }
-        
-        response
-            .bytes()
-            .await
-            .map(|bytes| bytes.to_vec())
-            .map_err(|e| format!("Failed to read GitLab repository archive: {}", e))
-    } else {
-        let response = send_github_request_with_fallback(
+    let response = send_github_request_with_fallback(
         client,
         GitHubFetchSurface::Api,
         |endpoint| {
@@ -1035,7 +867,6 @@ async fn download_repository_archive(
         .await
         .map(|bytes| bytes.to_vec())
         .map_err(|e| format!("Failed to read GitHub repository archive: {}", e))
-    }
 }
 
 fn snapshot_from_repository_archive(archive_bytes: &[u8]) -> Result<GitHubRepoSnapshot, String> {
@@ -1286,7 +1117,6 @@ fn raw_url_to_repo_path(url: &str) -> Option<RawRepoPath> {
             repo: parts[1].to_string(),
             branch: parts[2].to_string(),
             normalized_url: format!("https://github.com/{}/{}", parts[0], parts[1]),
-            platform: "github".to_string(),
         },
         file_path: parts[3..].join("/"),
     })
@@ -1315,17 +1145,6 @@ fn raw_file_url(endpoint: &GitHubMirrorEndpoint, repo: &GitHubRepoRef, file_path
             repo.branch,
             file_path.trim_start_matches('/')
         ),
-    )
-}
-
-fn gitlab_raw_file_url(endpoint: &GitLabEndpoint, repo: &GitHubRepoRef, file_path: &str) -> String {
-    format!(
-        "{}/{}/{}/-/raw/{}/{}",
-        endpoint.raw_base,
-        repo.owner,
-        repo.repo,
-        repo.branch,
-        file_path.trim_start_matches('/')
     )
 }
 
@@ -1858,7 +1677,6 @@ mod tests {
             repo: "twitterapi-io-skill".to_string(),
             branch: "main".to_string(),
             normalized_url: "https://github.com/dorukardahan/twitterapi-io-skill".to_string(),
-            platform: "github".to_string(),
         };
         let candidates = build_repo_skill_candidates_from_snapshot(&repo, &root_repo_snapshot())
             .expect("candidates");
@@ -1893,7 +1711,6 @@ mod tests {
             repo: "skills".to_string(),
             branch: "main".to_string(),
             normalized_url: "https://github.com/anthropics/skills".to_string(),
-            platform: "github".to_string(),
         };
 
         let candidates =
@@ -2076,7 +1893,6 @@ mod tests {
             repo: "skills".to_string(),
             branch: "main".to_string(),
             normalized_url: "https://github.com/anthropics/skills".to_string(),
-            platform: "github".to_string(),
         };
         let candidates = build_repo_skill_candidates_from_snapshot(&repo, &multi_skill_snapshot())
             .expect("candidates");
@@ -2101,7 +1917,6 @@ mod tests {
             repo: "skills".to_string(),
             branch: "main".to_string(),
             normalized_url: "https://github.com/openai/skills".to_string(),
-            platform: "github".to_string(),
         };
 
         let candidates =

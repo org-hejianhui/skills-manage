@@ -330,6 +330,16 @@ export const useMarketplaceStore = create<MarketplaceState>((set, get) => ({
       const preview = await invoke<GitHubRepoPreview>("preview_github_repo_import", {
         repoUrl,
       });
+      
+      // Store skill markdown content directly from preview
+      const skillMarkdownUpdates: Record<string, SkillMarkdownEntry> = {};
+      preview.skills.forEach(skill => {
+        skillMarkdownUpdates[skill.sourcePath] = {
+          status: "ready",
+          content: skill.skillMdContent
+        };
+      });
+      
       set((state) => ({
         githubImport: {
           ...state.githubImport,
@@ -340,6 +350,10 @@ export const useMarketplaceStore = create<MarketplaceState>((set, get) => ({
           error: null,
           importProgress: null,
           importStartedAt: null,
+          skillMarkdown: {
+            ...state.githubImport.skillMarkdown,
+            ...skillMarkdownUpdates
+          }
         },
       }));
       return preview;

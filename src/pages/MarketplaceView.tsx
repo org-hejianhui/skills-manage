@@ -300,7 +300,7 @@ export function MarketplaceView() {
       const result = await importGitHubRepoSkills(githubRepoUrl, selections);
       await Promise.all([rescan(), loadRegistries(), loadCentralSkills()]);
       toast.success(
-        lang === "zh" ? "GitHub 仓库技能已导入中央技能库" : "GitHub repo skills imported to Central"
+        lang === "zh" ? "仓库技能已导入中央技能库" : "Repo skills imported to Central"
       );
       return result;
     } catch (err) {

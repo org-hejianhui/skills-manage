@@ -288,7 +288,7 @@ export function Sidebar() {
             )}
 
             {/* Lobster agents */}
-            {lobsterAgents.length > 0 && (
+            {false && lobsterAgents.length > 0 && (
               <>
                 {expanded ? (
                   <div className="text-[10px] font-medium text-muted-foreground/70 uppercase tracking-wider px-2.5 pt-2 pb-1">

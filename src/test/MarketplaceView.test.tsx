@@ -308,6 +308,7 @@ describe("MarketplaceView", () => {
         rootDirectory: "skills/.curated",
         skillDirectoryName: "openai-docs",
         downloadUrl: "https://example.com/openai-docs/SKILL.md",
+        skillMdContent: "# OpenAI Docs Skill\n\nThis skill provides access to OpenAI documentation.",
         conflict: null,
       },
     ]);
@@ -331,6 +332,7 @@ describe("MarketplaceView", () => {
         rootDirectory: "skills/.curated",
         skillDirectoryName: "openai-docs",
         downloadUrl: "https://example.com/openai-docs/SKILL.md",
+        skillMdContent: "# OpenAI Docs Skill\n\nFirst skill content",
         conflict: null,
       },
       {
@@ -341,6 +343,7 @@ describe("MarketplaceView", () => {
         rootDirectory: "skills/.system",
         skillDirectoryName: "skill-creator",
         downloadUrl: "https://example.com/skill-creator/SKILL.md",
+        skillMdContent: "# Skill Creator\n\nSecond skill content",
         conflict: null,
       },
     ]);
@@ -370,6 +373,7 @@ describe("MarketplaceView", () => {
         rootDirectory: "skills/.system",
         skillDirectoryName: "skill-creator",
         downloadUrl: "https://example.com/skill-creator/SKILL.md",
+        skillMdContent: "# Skill Creator\n\nThis skill helps create new skills.",
         conflict: {
           existingSkillId: "skill-creator",
           existingName: "Skill Creator",

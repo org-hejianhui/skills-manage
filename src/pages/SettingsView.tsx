@@ -181,6 +181,12 @@ export function SettingsView() {
   const loadGitHubPat = useSettingsStore((s) => s.loadGitHubPat);
   const saveGitHubPat = useSettingsStore((s) => s.saveGitHubPat);
   const clearGitHubPat = useSettingsStore((s) => s.clearGitHubPat);
+  const gitlabToken = useSettingsStore((s) => s.gitlabToken);
+  const isLoadingGitlabToken = useSettingsStore((s) => s.isLoadingGitlabToken);
+  const isSavingGitlabToken = useSettingsStore((s) => s.isSavingGitlabToken);
+  const loadGitlabToken = useSettingsStore((s) => s.loadGitlabToken);
+  const saveGitlabToken = useSettingsStore((s) => s.saveGitlabToken);
+  const clearGitlabToken = useSettingsStore((s) => s.clearGitlabToken);
 
   const agents = usePlatformStore((s) => s.agents);
 
@@ -288,19 +294,27 @@ export function SettingsView() {
   const [platformError, setPlatformError] = useState<string | null>(null);
   const [githubPatInput, setGitHubPatInput] = useState("");
   const [githubPatMessage, setGitHubPatMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [gitlabTokenInput, setGitlabTokenInput] = useState("");
+  const [gitlabTokenMessage, setGitlabTokenMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // ── Load on mount ──────────────────────────────────────────────────────────
 
   useEffect(() => {
     loadScanDirectories();
     loadGitHubPat();
-  }, [loadScanDirectories, loadGitHubPat]);
+    loadGitlabToken();
+  }, [loadScanDirectories, loadGitHubPat, loadGitlabToken]);
 
   useEffect(() => {
     setGitHubPatInput(githubPat);
   }, [githubPat]);
 
+  useEffect(() => {
+    setGitlabTokenInput(gitlabToken);
+  }, [gitlabToken]);
+
   const isGitHubPatDirty = useMemo(() => githubPatInput.trim() !== githubPat, [githubPatInput, githubPat]);
+  const isGitlabTokenDirty = useMemo(() => gitlabTokenInput.trim() !== gitlabToken, [gitlabTokenInput, gitlabToken]);
 
   // ── Scan Directories Handlers ──────────────────────────────────────────────
 
@@ -448,6 +462,39 @@ export function SettingsView() {
     }
   }
 
+  async function handleSaveGitlabToken() {
+    setGitlabTokenMessage(null);
+    try {
+      await saveGitlabToken(gitlabTokenInput);
+      setGitlabTokenMessage({
+        type: "success",
+        text: t("settings.gitlabTokenSaved"),
+      });
+      toast.success(t("settings.gitlabTokenSaved"));
+    } catch (err) {
+      const text = String(err);
+      setGitlabTokenMessage({ type: "error", text });
+      toast.error(text);
+    }
+  }
+
+  async function handleClearGitlabToken() {
+    setGitlabTokenMessage(null);
+    try {
+      await clearGitlabToken();
+      setGitlabTokenInput("");
+      setGitlabTokenMessage({
+        type: "success",
+        text: t("settings.gitlabTokenCleared"),
+      });
+      toast.success(t("settings.gitlabTokenCleared"));
+    } catch (err) {
+      const text = String(err);
+      setGitlabTokenMessage({ type: "error", text });
+      toast.error(text);
+    }
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -509,67 +556,121 @@ export function SettingsView() {
           </CardContent>
         </Card>
 
-        {/* ── Section 2: GitHub Import Auth ─────────────────────────────── */}
+        {/* ── Section 2: GitLab & GitHub Import Auth ─────────────────────── */}
         <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <KeyRound className="size-5 text-muted-foreground" />
-              <div>
-                <CardTitle>{t("settings.githubPatTitle")}</CardTitle>
-                <CardDescription className="mt-1">
-                  {t("settings.githubPatDesc")}
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="github-pat" className="mb-1 block text-xs text-muted-foreground">
-                  {t("settings.githubPatLabel")}
-                </label>
-                <Input
-                  id="github-pat"
-                  type="password"
-                  placeholder="github_pat_..."
-                  value={githubPatInput}
-                  onChange={(event) => setGitHubPatInput(event.target.value)}
-                  disabled={isLoadingGitHubPat || isSavingGitHubPat}
-                />
-              </div>
+            <div className="space-y-6 pt-6">
+              {/* GitLab Token Section */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 pb-2">
+                  <KeyRound className="size-5 text-muted-foreground" />
+                  <h3 className="text-base font-semibold">{t("settings.gitlabPatTitle")}</h3>
+                </div>
+                <div>
+                  <label htmlFor="gitlab-token" className="mb-1 block text-xs text-muted-foreground">
+                    {t("settings.gitlabraTokenLabel")}
+                  </label>
+                  <Input
+                    id="gitlab-token"
+                    type="password"
+                    placeholder="glpat_..."
+                    value={gitlabTokenInput}
+                    onChange={(event) => setGitlabTokenInput(event.target.value)}
+                    disabled={isLoadingGitlabToken || isSavingGitlabToken}
+                  />
+                </div>
 
-              <div className="rounded-lg border border-border/70 bg-muted/20 p-3 text-sm text-muted-foreground">
-                <p>{t("settings.githubPatDirectOnly")}</p>
-                <p className="mt-2">{t("settings.githubPatRateLimitHint")}</p>
-              </div>
+                <div className="rounded-lg border border-border/70 bg-muted/20 p-3 text-sm text-muted-foreground">
+                  <p>{t("settings.gitlabTokenDirectOnly")}</p>
+                  <p className="mt-2">{t("settings.gitlabTokenExample")}</p>
+                </div>
 
-              {githubPatMessage ? (
-                <p
-                  className={githubPatMessage.type === "error" ? "text-sm text-destructive" : "text-sm text-emerald-600 dark:text-emerald-400"}
-                  role="status"
-                >
-                  {githubPatMessage.text}
-                </p>
-              ) : null}
-
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  onClick={handleSaveGitHubPat}
-                  disabled={isLoadingGitHubPat || isSavingGitHubPat || !isGitHubPatDirty}
-                >
-                  {isSavingGitHubPat ? <Loader2 className="size-4 animate-spin" /> : null}
-                  <span>{t("common.save")}</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={handleClearGitHubPat}
-                  disabled={isLoadingGitHubPat || isSavingGitHubPat || !githubPat}
-                >
-                  <span>{t("settings.githubPatClear")}</span>
-                </Button>
-                {isLoadingGitHubPat ? (
-                  <span className="text-xs text-muted-foreground">{t("settings.loading")}</span>
+                {gitlabTokenMessage ? (
+                  <p
+                    className={gitlabTokenMessage.type === "error" ? "text-sm text-destructive" : "text-sm text-emerald-600 dark:text-emerald-400"}
+                    role="status"
+                  >
+                    {gitlabTokenMessage.text}
+                  </p>
                 ) : null}
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    onClick={handleSaveGitlabToken}
+                    disabled={isLoadingGitlabToken || isSavingGitlabToken || !isGitlabTokenDirty}
+                  >
+                    {isSavingGitlabToken ? <Loader2 className="size-4 animate-spin" /> : null}
+                    <span>{t("common.save")}</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleClearGitlabToken}
+                    disabled={isLoadingGitlabToken || isSavingGitlabToken || !gitlabToken}
+                  >
+                    <span>{t("settings.gitlabTokenClear")}</span>
+                  </Button>
+                  {isLoadingGitlabToken ? (
+                    <span className="text-xs text-muted-foreground">{t("settings.loading")}</span>
+                  ) : null}
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="border-t border-border/50" />
+
+              {/* GitHub Token Section */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 pb-2">
+                  <KeyRound className="size-5 text-muted-foreground" />
+                  <h3 className="text-base font-semibold">{t("settings.githubPatTitle")}</h3>
+                </div>
+                <div>
+                  <label htmlFor="github-pat" className="mb-1 block text-xs text-muted-foreground">
+                    {t("settings.githubPatLabel")}
+                  </label>
+                  <Input
+                    id="github-pat"
+                    type="password"
+                    placeholder="github_pat_..."
+                    value={githubPatInput}
+                    onChange={(event) => setGitHubPatInput(event.target.value)}
+                    disabled={isLoadingGitHubPat || isSavingGitHubPat}
+                  />
+                </div>
+
+                <div className="rounded-lg border border-border/70 bg-muted/20 p-3 text-sm text-muted-foreground">
+                  <p>{t("settings.githubPatDirectOnly")}</p>
+                  <p className="mt-2">{t("settings.githubPatRateLimitHint")}</p>
+                </div>
+
+                {githubPatMessage ? (
+                  <p
+                    className={githubPatMessage.type === "error" ? "text-sm text-destructive" : "text-sm text-emerald-600 dark:text-emerald-400"}
+                    role="status"
+                  >
+                    {githubPatMessage.text}
+                  </p>
+                ) : null}
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    onClick={handleSaveGitHubPat}
+                    disabled={isLoadingGitHubPat || isSavingGitHubPat || !isGitHubPatDirty}
+                  >
+                    {isSavingGitHubPat ? <Loader2 className="size-4 animate-spin" /> : null}
+                    <span>{t("common.save")}</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleClearGitHubPat}
+                    disabled={isLoadingGitHubPat || isSavingGitHubPat || !githubPat}
+                  >
+                    <span>{t("settings.githubPatClear")}</span>
+                  </Button>
+                  {isLoadingGitHubPat ? (
+                    <span className="text-xs text-muted-foreground">{t("settings.loading")}</span>
+                  ) : null}
+                </div>
               </div>
             </div>
           </CardContent>

@@ -90,6 +90,12 @@ function setupMocks({
   loadGitHubPat = vi.fn(),
   saveGitHubPat = vi.fn(),
   clearGitHubPat = vi.fn(),
+  gitlabToken = "",
+  isLoadingGitlabToken = false,
+  isSavingGitlabToken = false,
+  loadGitlabToken = vi.fn(),
+  saveGitlabToken = vi.fn(),
+  clearGitlabToken = vi.fn(),
   rescan = vi.fn(),
   refreshCounts = vi.fn(),
   flavor = "mocha" as const,
@@ -115,6 +121,12 @@ function setupMocks({
       loadGitHubPat,
       saveGitHubPat,
       clearGitHubPat,
+      gitlabToken,
+      isLoadingGitlabToken,
+      isSavingGitlabToken,
+      loadGitlabToken,
+      saveGitlabToken,
+      clearGitlabToken,
       clearError: vi.fn(),
     })
   );
@@ -169,10 +181,10 @@ describe("SettingsView", () => {
     expect(screen.getByRole("heading", { name: "设置" })).toBeTruthy();
   });
 
-  it("renders the github token section", () => {
+  it("renders the gitlab & github token section", () => {
     setupMocks();
     renderSettingsView();
-    expect(screen.getByText("GitHub 导入访问令牌")).toBeTruthy();
+    expect(screen.getByText("GitLab & GitHub 访问令牌")).toBeTruthy();
   });
 
   it("renders the existing settings sections", () => {
