@@ -260,6 +260,80 @@ fn validate_central_delete_target(
     Ok(resolved)
 }
 
+#[cfg(target_os = "windows")]
+fn try_windows_admin_delete(path: &Path, operation_name: &str) -> Result<(), String> {
+    use std::process::Command;
+    
+    let path_str = path.to_string_lossy().to_string();
+    let quoted_path = format!("\"{}\"", path_str);
+    
+    // Try using PowerShell with runas verb
+    let powershell_cmd = format!("Remove-Item -Path {} -Force -ErrorAction Stop", quoted_path);
+    
+    let _output = Command::new("powershell")
+        .args([
+            "-Command",
+            &format!("Start-Process powershell -ArgumentList '{}' -Verb RunAs -Wait -WindowStyle Hidden", powershell_cmd)
+        ])
+        .output()
+        .map_err(|e| format!("Failed to execute PowerShell command: {}", e))?;
+    
+    // Check if the path still exists
+    if std::fs::symlink_metadata(path).is_err() {
+        return Ok(());
+    }
+    
+    Err(format!("{} at '{}' failed even with admin privileges", operation_name, path.display()))
+}
+
+#[cfg(not(target_os = "windows"))]
+fn try_windows_admin_delete(_path: &Path, _operation_name: &str) -> Result<(), String> {
+    Err("Windows admin delete not supported on this platform".to_string())
+}
+
+fn remove_with_retry<F>(path: &Path, operation: F, max_attempts: usize, operation_name: &str) -> Result<(), String>
+where
+    F: Fn() -> std::io::Result<()>,
+{
+    let mut attempts = 0;
+    loop {
+        attempts += 1;
+        match operation() {
+            Ok(()) => {
+                // Verify the operation was successful
+                if std::fs::symlink_metadata(path).is_err() {
+                    return Ok(());
+                }
+                // If the path still exists, retry
+            }
+            Err(e) => {
+                if attempts >= max_attempts {
+                    // On Windows, try using admin privileges as a last resort
+                    #[cfg(target_os = "windows")]
+                    if let Ok(()) = try_windows_admin_delete(path, operation_name) {
+                        return Ok(());
+                    }
+                    
+                    return Err(format!("{} at '{}' failed after {} attempts: {}", operation_name, path.display(), max_attempts, e));
+                }
+            }
+        }
+        
+        if attempts >= max_attempts {
+            // On Windows, try using admin privileges as a last resort
+            #[cfg(target_os = "windows")]
+            if let Ok(()) = try_windows_admin_delete(path, operation_name) {
+                return Ok(());
+            }
+            
+            return Err(format!("{} at '{}' failed after {} attempts: Path still exists", operation_name, path.display(), max_attempts));
+        }
+        
+        // Wait a short time before retrying
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+}
+
 fn remove_central_skill_dir(target: &Path) -> Result<(), String> {
     let metadata = std::fs::symlink_metadata(target).map_err(|e| {
         format!(
@@ -270,17 +344,27 @@ fn remove_central_skill_dir(target: &Path) -> Result<(), String> {
     })?;
 
     if metadata.file_type().is_symlink() {
-        std::fs::remove_file(target)
-            .map_err(|e| format!("Failed to remove central skill symlink: {}", e))
+        remove_with_retry(
+            target,
+            || std::fs::remove_file(target),
+            3,
+            "Remove central skill symlink"
+        )?;
     } else if metadata.is_dir() {
-        std::fs::remove_dir_all(target)
-            .map_err(|e| format!("Failed to remove central skill directory: {}", e))
+        remove_with_retry(
+            target,
+            || std::fs::remove_dir_all(target),
+            3,
+            "Remove central skill directory"
+        )?;
     } else {
-        Err(format!(
+        return Err(format!(
             "Canonical path '{}' is not a removable skill directory",
             target.display()
-        ))
+        ));
     }
+    
+    Ok(())
 }
 
 #[derive(Debug, Clone)]
@@ -453,17 +537,27 @@ fn remove_central_bundle_target(target: &CentralBundleTarget) -> Result<(), Stri
     })?;
 
     if metadata.file_type().is_symlink() {
-        std::fs::remove_file(&target.delete_path)
-            .map_err(|e| format!("Failed to remove Central bundle symlink: {}", e))
+        remove_with_retry(
+            &target.delete_path,
+            || std::fs::remove_file(&target.delete_path),
+            3,
+            "Remove Central bundle symlink"
+        )?;
     } else if metadata.is_dir() {
-        std::fs::remove_dir_all(&target.delete_path)
-            .map_err(|e| format!("Failed to remove Central bundle directory: {}", e))
+        remove_with_retry(
+            &target.delete_path,
+            || std::fs::remove_dir_all(&target.delete_path),
+            3,
+            "Remove Central bundle directory"
+        )?;
     } else {
-        Err(format!(
+        return Err(format!(
             "Central bundle path '{}' is not removable",
             target.delete_path.display()
-        ))
+        ));
     }
+    
+    Ok(())
 }
 
 fn path_resolves_to(path: &Path, target: &Path) -> bool {
@@ -621,21 +715,13 @@ fn installation_details(installations: Vec<db::SkillInstallation>) -> Vec<SkillI
 async fn read_only_agent_ids_for_skill(
     pool: &DbPool,
     skill_id: &str,
-    is_central: bool,
+    _is_central: bool,
 ) -> Result<Vec<String>, String> {
     let mut agent_ids: BTreeSet<String> =
         db::get_read_only_observed_agent_ids_for_skill(pool, skill_id)
             .await?
             .into_iter()
             .collect();
-
-    if is_central {
-        for agent in db::get_all_agents(pool).await? {
-            if agent.is_enabled && db::agent_supports_universal_agents_skills(&agent.id) {
-                agent_ids.insert(agent.id);
-            }
-        }
-    }
 
     for installation in db::get_skill_installations(pool, skill_id).await? {
         agent_ids.remove(&installation.agent_id);

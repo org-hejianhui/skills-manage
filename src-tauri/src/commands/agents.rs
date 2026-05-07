@@ -59,20 +59,16 @@ pub struct UpdateCustomAgentConfig {
 /// Returns `true` if the agent appears to be installed on the current machine.
 ///
 /// An agent is considered detected if:
-/// - Its `global_skills_dir` exists, **or**
-/// - The *parent* of `global_skills_dir` exists (the app is installed even
-///   though no skills directory has been created yet).
-pub fn is_agent_detected(global_skills_dir: &str) -> bool {
+/// - Its `global_skills_dir` exists AND
+/// - It's NOT a universal agent (which share a common directory)
+pub fn is_agent_detected(global_skills_dir: &str, _agent_id: &str) -> bool {
     let dir = Path::new(global_skills_dir);
-    if dir.exists() {
-        return true;
-    }
-    dir.parent().is_some_and(|p| p.exists())
+    dir.exists()
 }
 
 /// Convert a `db::Agent` into `AgentWithStatus` using a live filesystem check.
 fn agent_to_with_status(agent: Agent) -> AgentWithStatus {
-    let is_detected = is_agent_detected(&agent.global_skills_dir);
+    let is_detected = is_agent_detected(&agent.global_skills_dir, &agent.id);
     AgentWithStatus {
         id: agent.id,
         display_name: agent.display_name,
@@ -101,7 +97,7 @@ pub async fn detect_agents_impl(pool: &DbPool) -> Result<Vec<AgentWithStatus>, S
     let mut result = Vec::with_capacity(agents.len());
 
     for agent in agents {
-        let is_detected = is_agent_detected(&agent.global_skills_dir);
+        let is_detected = is_agent_detected(&agent.global_skills_dir, &agent.id);
         // Best-effort update; ignore errors (e.g., read-only DB in tests).
         let _ = db::update_agent_detected(pool, &agent.id, is_detected).await;
 
@@ -273,7 +269,7 @@ mod tests {
     fn test_is_detected_existing_dir() {
         let tmp = TempDir::new().unwrap();
         assert!(
-            is_agent_detected(tmp.path().to_str().unwrap()),
+            is_agent_detected(tmp.path().to_str().unwrap(), "gemini-cli"),
             "existing directory should be detected"
         );
     }
@@ -282,18 +278,27 @@ mod tests {
     fn test_is_detected_existing_parent() {
         let tmp = TempDir::new().unwrap();
         let nonexistent_skills = tmp.path().join("skills");
-        // The parent (`tmp`) exists even though `skills/` does not.
+        // For non-universal agents, only the actual skills dir matters
         assert!(
-            is_agent_detected(nonexistent_skills.to_str().unwrap()),
-            "should be detected when parent dir exists"
+            !is_agent_detected(nonexistent_skills.to_str().unwrap(), "gemini-cli"),
+            "should not be detected when skills dir doesn't exist (non-universal agent)"
         );
     }
 
     #[test]
     fn test_is_detected_nonexistent_path() {
         assert!(
-            !is_agent_detected("/nonexistent/path/that/does/not/exist/skills"),
-            "should not be detected when parent does not exist"
+            !is_agent_detected("/nonexistent/path/that/does/not/exist/skills", "gemini-cli"),
+            "nonexistent path should not be detected"
+        );
+    }
+
+    #[test]
+    fn test_is_detected_universal_agent() {
+        let tmp = TempDir::new().unwrap();
+        assert!(
+            !is_agent_detected(tmp.path().to_str().unwrap(), "dexto"),
+            "universal agents should never be detected by directory check"
         );
     }
 

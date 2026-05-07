@@ -8,6 +8,15 @@
     "sql:default",
     "fs:default",
     "dialog:default",
-    "shell:default"
+    "shell:default",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "powershell",
+          "args": true
+        }
+      ]
+    }
   ]
 }

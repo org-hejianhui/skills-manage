@@ -87,7 +87,7 @@
   },
   "central": {
     "title": "Central Skills",
-    "path": "~/.agents/skills/",
+    "path": "~/.trae-cn/skills/",
     "searchPlaceholder": "Search central skills...",
     "loading": "Loading skills...",
     "noMatch": "No skills match \"{{query}}\"",
@@ -417,7 +417,7 @@
   },
   "empty": {
     "welcomeTitle": "Welcome to skills-manage!",
-    "welcomeDesc": "No skills found in ~/.agents/skills/. Get started by creating a SKILL.md file there, or add custom scan directories in Settings.",
+    "welcomeDesc": "No skills found in ~/.trae-cn/skills/. Get started by creating a SKILL.md file there, or add custom scan directories in Settings.",
     "createHint": "Create a skill directory at",
     "goToSettings": "Go to Settings"
   },

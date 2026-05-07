@@ -17,7 +17,7 @@ function App() {
         <Route index element={<Navigate to="/central" replace />} />
         {/* Platform view: lists skills for a specific agent */}
         <Route path="platform/:agentId" element={<PlatformView />} />
-        {/* Central Skills: canonical ~/.agents/skills/ view */}
+        {/* Central Skills: canonical ~/.trae-cn/skills/ view */}
         <Route path="central" element={<CentralSkillsView />} />
         {/* Skill detail page */}
         <Route path="skill/:skillId" element={<SkillDetailPage />} />

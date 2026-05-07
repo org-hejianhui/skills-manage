@@ -153,6 +153,27 @@ export function Sidebar() {
   );
   const lobsterAgents = platformAgents.filter((a) => a.category === "lobster");
   const codingAgents = platformAgents.filter((a) => a.category !== "lobster");
+  
+  // Sort coding agents: Trae CN, Trae, Qoder, Cline, Cursor, Claude Code, Codex CLI first, then others
+  const sortedCodingAgents = [...codingAgents].sort((a, b) => {
+    const priorityOrder = ["trae-cn", "trae", "qoder", "cline", "cursor", "claude-code", "codex"];
+    const aIndex = priorityOrder.indexOf(a.id);
+    const bIndex = priorityOrder.indexOf(b.id);
+    
+    if (aIndex !== -1 && bIndex !== -1) {
+      return aIndex - bIndex;
+    }
+    if (aIndex !== -1) {
+      return -1;
+    }
+    if (bIndex !== -1) {
+      return 1;
+    }
+    
+    // Sort remaining agents alphabetically by display name
+    return a.display_name.localeCompare(b.display_name);
+  });
+  
   const populatedObsidianVaults = obsidianVaults.filter((vault) => vault.skill_count > 0);
   const activeObsidianVaultId = getActiveObsidianVaultId(pathname);
 
@@ -312,7 +333,7 @@ export function Sidebar() {
             )}
 
             {/* Coding agents */}
-            {codingAgents.length > 0 && (
+            {sortedCodingAgents.length > 0 && (
               <>
                 {expanded ? (
                   <div className="text-[10px] font-medium text-muted-foreground/70 uppercase tracking-wider px-2.5 pt-2 pb-1">
@@ -321,7 +342,7 @@ export function Sidebar() {
                 ) : (
                   <div className="border-t border-sidebar-border/40 my-1.5" />
                 )}
-                {codingAgents.map((agent) => (
+                {sortedCodingAgents.map((agent) => (
                   <NavItem
                     key={agent.id}
                     label={agent.display_name}

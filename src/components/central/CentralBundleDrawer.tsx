@@ -37,7 +37,6 @@ export function CentralBundleDrawer({
       path: skillPath(skill),
       relativePath: skill.file_path.split(`${detail.bundle.relativePath}/`).pop() ?? skill.name,
       linkedAgentIds: skill.linked_agents,
-      readOnlyAgentIds: skill.read_only_agents ?? [],
     })) ?? [];
 
   return (

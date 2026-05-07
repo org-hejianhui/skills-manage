@@ -489,7 +489,7 @@ fn agents_skills_compatibility_root(primary_root: &Path) -> Option<PathBuf> {
     primary_root
         .parent()
         .and_then(Path::parent)
-        .map(|home_root| home_root.join(".agents/skills"))
+        .map(|home_root| home_root.join(".trae-cn/skills"))
 }
 
 fn compatibility_scan_root(path: PathBuf) -> AgentScanRoot {
@@ -510,19 +510,7 @@ fn push_unique_scan_root(roots: &mut Vec<AgentScanRoot>, root: AgentScanRoot) {
 fn scan_roots_for_agent(agent: &crate::db::Agent) -> Vec<AgentScanRoot> {
     let primary_root = PathBuf::from(&agent.global_skills_dir);
 
-    let compatibility_root = agents_skills_compatibility_root(&primary_root);
-    if db::agent_supports_universal_agents_skills(&agent.id)
-        && compatibility_root
-            .as_ref()
-            .is_some_and(|root| root == &primary_root)
-    {
-        return compatibility_root
-            .map(compatibility_scan_root)
-            .into_iter()
-            .collect();
-    }
-
-    let mut roots = match agent.id.as_str() {
+    let roots = match agent.id.as_str() {
         "claude-code" => {
             let mut roots = vec![AgentScanRoot {
                 path: primary_root.clone(),
@@ -533,19 +521,11 @@ fn scan_roots_for_agent(agent: &crate::db::Agent) -> Vec<AgentScanRoot> {
             roots
         }
         _ => vec![AgentScanRoot {
-            path: primary_root.clone(),
+            path: primary_root,
             source_root: None,
             source_kind: None,
         }],
     };
-
-    if agent.id == "factory-droid" || db::agent_supports_universal_agents_skills(&agent.id) {
-        if let Some(compatibility_root) = compatibility_root {
-            if compatibility_root != primary_root {
-                push_unique_scan_root(&mut roots, compatibility_scan_root(compatibility_root));
-            }
-        }
-    }
 
     roots
 }

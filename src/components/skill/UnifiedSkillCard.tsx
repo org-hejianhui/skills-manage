@@ -23,10 +23,12 @@ import { cn } from "@/lib/utils";
 import { isInstallTargetAgent } from "@/lib/agents";
 
 const FEATURED_CODING_AGENT_IDS = [
-  "cursor",
+  "trae-cn",
   "trae",
+  "qoder",
+  "cline",
+  "cursor",
   "claude-code",
-  "windsurf",
   "codex",
   "qwen",
 ];
@@ -186,7 +188,6 @@ export function UnifiedSkillCard(props: UnifiedSkillCardProps) {
   const lobsterAgents = targetPlatformAgents.filter((agent) => agent.category === "lobster");
   const codingAgents = targetPlatformAgents.filter((agent) => agent.category !== "lobster");
   const linkedAgentIds = new Set(platformIcons?.linkedAgents ?? []);
-  const readOnlyAgentIds = new Set(platformIcons?.readOnlyAgents ?? []);
   const featuredCodingAgents = FEATURED_CODING_AGENT_IDS
     .map((agentId) => codingAgents.find((agent) => agent.id === agentId))
     .filter((agent): agent is AgentWithStatus => !!agent);
@@ -427,16 +428,15 @@ export function UnifiedSkillCard(props: UnifiedSkillCardProps) {
                   </span>
                   <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden">
                     {lobsterAgents.map((agent) => {
-                      const isReadOnlyAgent = readOnlyAgentIds.has(agent.id);
                       return (
                         <PlatformToggleIcon
                           key={agent.id}
                           agent={agent}
                           skillName={name}
-                          isLinked={linkedAgentIds.has(agent.id) || isReadOnlyAgent}
-                          isReadOnly={isReadOnlyAgent}
-                          isToggling={platformIcons.togglingAgentId === agent.id}
-                          onToggle={() => platformIcons.onToggle(platformIcons.skillId, agent.id)}
+                          isLinked={linkedAgentIds.has(agent.id)}
+                          isReadOnly={false}
+                          isToggling={platformIcons?.togglingAgentId === agent.id}
+                          onToggle={() => platformIcons?.onToggle?.(platformIcons?.skillId || '', agent.id)}
                         />
                       );
                     })}
@@ -450,16 +450,15 @@ export function UnifiedSkillCard(props: UnifiedSkillCardProps) {
                   </span>
                   <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden">
                     {featuredCodingAgents.map((agent) => {
-                      const isReadOnlyAgent = readOnlyAgentIds.has(agent.id);
                       return (
                         <PlatformToggleIcon
                           key={agent.id}
                           agent={agent}
                           skillName={name}
-                          isLinked={linkedAgentIds.has(agent.id) || isReadOnlyAgent}
-                          isReadOnly={isReadOnlyAgent}
-                          isToggling={platformIcons.togglingAgentId === agent.id}
-                          onToggle={() => platformIcons.onToggle(platformIcons.skillId, agent.id)}
+                          isLinked={linkedAgentIds.has(agent.id)}
+                          isReadOnly={false}
+                          isToggling={platformIcons?.togglingAgentId === agent.id}
+                          onToggle={() => platformIcons?.onToggle?.(platformIcons?.skillId || '', agent.id)}
                         />
                       );
                     })}

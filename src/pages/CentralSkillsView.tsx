@@ -65,7 +65,7 @@ const BROWSER_FIXTURE_AGENTS: AgentWithStatus[] = [
     id: "central",
     display_name: "Central Skills",
     category: "central",
-    global_skills_dir: "/Users/browser/.agents/skills/",
+    global_skills_dir: "/Users/browser/.trae-cn/skills/",
     is_detected: true,
     is_builtin: true,
     is_enabled: true,
@@ -77,8 +77,8 @@ const BROWSER_FIXTURE_SKILLS: SkillWithLinks[] = [
     id: "fixture-central-skill",
     name: "fixture-central-skill",
     description: "Browser validation fixture for Central and drawer entry flows.",
-    file_path: "~/.agents/skills/fixture-central-skill/SKILL.md",
-    canonical_path: "~/.agents/skills/fixture-central-skill",
+    file_path: "~/.trae-cn/skills/fixture-central-skill/SKILL.md",
+    canonical_path: "~/.trae-cn/skills/fixture-central-skill",
     is_central: true,
     source: "browser-fixture",
     scanned_at: "2026-04-17T00:00:00.000Z",
@@ -194,7 +194,7 @@ function FirstVisitEmptyState() {
         <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-xl px-4 py-3 max-w-xs text-left border border-border">
           <FolderOpen className="size-4 shrink-0 text-primary/60" />
           <span>
-            {t("empty.createHint")} <code className="font-mono">~/.agents/skills/my-skill/SKILL.md</code>
+            {t("empty.createHint")} <code className="font-mono">~/.trae-cn/skills/my-skill/SKILL.md</code>
           </span>
         </div>
         <Button
@@ -352,7 +352,6 @@ export function CentralSkillsView() {
           dirnameFromSkillFile(skill.file_path),
         ],
         getLinkedAgentIds: (skill) => skill.linked_agents,
-        getReadOnlyAgentIds: (skill) => skill.read_only_agents ?? [],
       }),
     [centralSkillsRoot, skills]
   );
@@ -447,7 +446,7 @@ export function CentralSkillsView() {
   }
 
   function linkedAgentNames(skill: SkillWithLinks): string[] {
-    return agentDisplayNames([...skill.linked_agents, ...(skill.read_only_agents ?? [])]);
+    return agentDisplayNames([...skill.linked_agents]);
   }
 
   const sortFieldOptions: Array<{ value: SortField; label: string }> = [
@@ -510,7 +509,7 @@ export function CentralSkillsView() {
   }
 
   function handleDeleteClick(skill: SkillWithLinks) {
-    if (skill.linked_agents.length > 0 || (skill.read_only_agents?.length ?? 0) > 0) {
+    if (skill.linked_agents.length > 0) {
       setDeleteTargetSkill(skill);
       return;
     }
@@ -735,7 +734,6 @@ export function CentralSkillsView() {
                         path={bundle.path}
                         skillCount={bundle.skillCount}
                         linkedAgentCount={bundle.linkedAgentCount}
-                        readOnlyAgentCount={bundle.readOnlyAgentCount}
                         isSymlink={bundle.isSymlink}
                         previewNames={group?.skills.map((skill) => skill.name) ?? []}
                         onOpen={() => void handleOpenBundleDrawer(bundle)}
@@ -770,14 +768,13 @@ export function CentralSkillsView() {
                       onDeleteFromCentral={() => handleDeleteClick(skill)}
                       deleteFromCentralLabel={t("central.deleteFromCentralLabel", { name: skill.name })}
                       deleteFromCentralRequiresDialog={
-                        skill.linked_agents.length > 0 || (skill.read_only_agents?.length ?? 0) > 0
+                        skill.linked_agents.length > 0
                       }
                       isLoading={deletingSkillId === skill.id}
                       detailButtonRef={(node) => setDetailButtonRef(skill.id, node)}
                       platformIcons={{
                         agents,
                         linkedAgents: skill.linked_agents,
-                        readOnlyAgents: skill.read_only_agents ?? [],
                         skillId: skill.id,
                         onToggle: handleTogglePlatform,
                         onManage: () => handleOpenPlatformDrawer(skill.id),

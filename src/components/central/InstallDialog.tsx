@@ -44,6 +44,26 @@ export function InstallDialog({
   // Only show real install targets; source-only categories such as Obsidian
   // must never become selectable platform targets.
   const targetAgents = agents.filter(isInstallTargetAgent);
+  
+  // Sort agents: Trae CN, Trae, Qoder, Cline, Cursor, Claude Code, Codex CLI first, then others
+  const sortedTargetAgents = [...targetAgents].sort((a, b) => {
+    const priorityOrder = ["trae-cn", "trae", "qoder", "cline", "cursor", "claude-code", "codex"];
+    const aIndex = priorityOrder.indexOf(a.id);
+    const bIndex = priorityOrder.indexOf(b.id);
+    
+    if (aIndex !== -1 && bIndex !== -1) {
+      return aIndex - bIndex;
+    }
+    if (aIndex !== -1) {
+      return -1;
+    }
+    if (bIndex !== -1) {
+      return 1;
+    }
+    
+    // Sort remaining agents alphabetically by display name
+    return a.display_name.localeCompare(b.display_name);
+  });
 
   // Track which agents are selected for installation.
   const [selectedAgentIds, setSelectedAgentIds] = useState<Set<string>>(
@@ -58,15 +78,8 @@ export function InstallDialog({
   // user can see the full picture, but they can deselect any.
   useEffect(() => {
     if (open && skill) {
-      // Default: check agents that are already linked (show current state).
-      const initialSelection = new Set<string>(
-        targetAgents
-          .filter((a) =>
-            skill.linked_agents.includes(a.id) ||
-            (skill.read_only_agents?.includes(a.id) ?? false)
-          )
-          .map((a) => a.id)
-      );
+      // Default: no agents selected initially
+      const initialSelection = new Set<string>();
       setSelectedAgentIds(initialSelection);
       setInstallMethod("symlink");
       setError(null);
@@ -88,8 +101,7 @@ export function InstallDialog({
 
   function getSelectedInstallableAgentIds() {
     if (!skill) return [];
-    const readOnlyAgentIds = new Set(skill.read_only_agents ?? []);
-    return Array.from(selectedAgentIds).filter((id) => !readOnlyAgentIds.has(id));
+    return Array.from(selectedAgentIds);
   }
 
   async function handleConfirm() {
@@ -136,9 +148,8 @@ export function InstallDialog({
                 {t("installDialog.noPlatforms")}
               </p>
             ) : (
-              targetAgents.map((agent) => {
+              sortedTargetAgents.map((agent) => {
                 const isLinked = skill.linked_agents.includes(agent.id);
-                const isReadOnly = skill.read_only_agents?.includes(agent.id) ?? false;
                 const isChecked = selectedAgentIds.has(agent.id);
 
                 return (
@@ -148,7 +159,6 @@ export function InstallDialog({
                   >
                     <Checkbox
                       checked={isChecked}
-                      disabled={isReadOnly}
                       onCheckedChange={(checked) =>
                         handleCheckboxChange(agent.id, !!checked)
                       }
@@ -157,18 +167,12 @@ export function InstallDialog({
                     <span
                       className="text-sm text-foreground flex-1 cursor-pointer select-none truncate"
                       onClick={() => {
-                        if (!isReadOnly) {
-                          handleCheckboxChange(agent.id, !isChecked);
-                        }
+                        handleCheckboxChange(agent.id, !isChecked);
                       }}
                     >
                       {agent.display_name}
                     </span>
-                    {isReadOnly ? (
-                      <span className="text-xs text-primary shrink-0">
-                        {t("installDialog.alwaysIncluded")}
-                      </span>
-                    ) : isLinked ? (
+                    {isLinked ? (
                       <span className="text-xs text-primary shrink-0">
                         {t("installDialog.alreadyLinked")}
                       </span>

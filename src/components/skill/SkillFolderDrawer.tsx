@@ -30,7 +30,6 @@ export interface SkillFolderDrawerSkill {
   agentId?: string | null;
   rowId?: string | null;
   linkedAgentIds?: string[];
-  readOnlyAgentIds?: string[];
   sourceLabel?: string;
   isReadOnly?: boolean;
 }
@@ -167,8 +166,7 @@ export function SkillFolderDrawer({
                     <div className="space-y-2">
                       {filteredSkills.map((skill) => {
                         const linkedIds = skill.linkedAgentIds ?? [];
-                        const readOnlyIds = skill.readOnlyAgentIds ?? [];
-                        const platformIds = [...linkedIds, ...readOnlyIds];
+                        const platformIds = [...linkedIds];
                         const isSelected = selectedSkill?.key === skill.key;
 
                         return (
@@ -218,9 +216,7 @@ export function SkillFolderDrawer({
                                       size={14}
                                       className={cn(
                                         "size-3.5",
-                                        readOnlyIds.includes(agentId)
-                                          ? "text-muted-foreground/50"
-                                          : "text-primary"
+                                        "text-primary"
                                       )}
                                     />
                                   </span>

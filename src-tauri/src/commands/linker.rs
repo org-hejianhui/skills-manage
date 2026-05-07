@@ -37,8 +37,8 @@ pub struct FailedInstall {
 ///
 /// Examples:
 /// - `make_relative_path("/a/b/c", "/a/d/e/f")` -> `"../../d/e/f"`
-/// - `make_relative_path("/home/user/.claude/skills", "/home/user/.agents/skills/my-skill")`
-///   -> `"../../.agents/skills/my-skill"`
+/// - `make_relative_path("/home/user/.claude/skills", "/home/user/.trae-cn/skills/my-skill")`
+///   -> `"../../.trae-cn/skills/my-skill"`
 pub fn make_relative_path(from_dir: &Path, to_path: &Path) -> PathBuf {
     let from_components: Vec<_> = from_dir.components().collect();
     let to_components: Vec<_> = to_path.components().collect();
@@ -224,19 +224,12 @@ async fn existing_install_path_for_agent(
 }
 
 async fn universal_available_install_result(
-    pool: &DbPool,
-    skill_id: &str,
-    agent_id: &str,
-    canonical_dir: &Path,
+    _pool: &DbPool,
+    _skill_id: &str,
+    _agent_id: &str,
+    _canonical_dir: &Path,
 ) -> Result<Option<InstallResult>, String> {
-    if !db::agent_supports_universal_agents_skills(agent_id) {
-        return Ok(None);
-    }
-
-    let symlink_path = existing_install_path_for_agent(pool, skill_id, agent_id)
-        .await?
-        .unwrap_or_else(|| canonical_dir.to_string_lossy().into_owned());
-    Ok(Some(InstallResult { symlink_path }))
+    Ok(None)
 }
 
 // ─── Core Logic ───────────────────────────────────────────────────────────────
@@ -296,7 +289,13 @@ pub async fn install_skill_to_agent_impl(
         Ok(meta) if meta.file_type().is_symlink() => {
             // Remove stale symlink so we can replace it.
             std::fs::remove_file(&symlink_path)
-                .map_err(|e| format!("Failed to remove existing symlink: {}", e))?;
+                .map_err(|e| {
+                    if e.kind() == std::io::ErrorKind::PermissionDenied {
+                        format!("Failed to remove existing symlink: Permission denied. Please check file permissions for {}", symlink_path.display())
+                    } else {
+                        format!("Failed to remove existing symlink: {}", e)
+                    }
+                })?;
         }
         Ok(meta) if meta.is_dir() => {
             return Err(format!(
@@ -466,7 +465,7 @@ pub async fn uninstall_skill_from_agent_impl(
     // 2. Look up the installation record to determine where and how it was installed.
     let installations = db::get_skill_installations(pool, skill_id).await?;
     let record = installations.iter().find(|r| r.agent_id == agent_id);
-    if record.is_none() && db::agent_supports_universal_agents_skills(agent_id) {
+    if record.is_none() {
         return Ok(());
     }
     let install_path = record
@@ -477,27 +476,65 @@ pub async fn uninstall_skill_from_agent_impl(
     // 3. Inspect the entry at that path and remove it appropriately.
     match std::fs::symlink_metadata(&install_path) {
         Ok(meta) if meta.file_type().is_symlink() => {
-            // Always safe to remove symlinks.
-            std::fs::remove_file(&install_path)
-                .map_err(|e| format!("Failed to remove symlink: {}", e))?;
+            // Always safe to remove symlinks. Try up to 3 times if permission denied
+            let mut remove_result = std::fs::remove_file(&install_path);
+            let mut retry_count = 0;
+            
+            // Retry up to 3 times with small delays if permission denied
+            while retry_count < 3 && remove_result.is_err() && 
+                  remove_result.as_ref().unwrap_err().kind() == std::io::ErrorKind::PermissionDenied {
+                eprintln!("Retrying to remove symlink at {} (attempt {}/3)", install_path.display(), retry_count + 1);
+                std::thread::sleep(std::time::Duration::from_millis(100));
+                retry_count += 1;
+                remove_result = std::fs::remove_file(&install_path);
+            }
+            
+            if let Err(e) = remove_result {
+                // Log the error but don't fail completely - still clean up DB
+                eprintln!("Failed to remove symlink at {} after {} attempts: {}", install_path.display(), retry_count + 1, e);
+                
+                // For permission errors, log detailed message but continue
+                if e.kind() == std::io::ErrorKind::PermissionDenied {
+                    eprintln!("Permission denied when removing symlink at {}: {}", install_path.display(), e);
+                    eprintln!("Uninstall will continue and clean up database record.");
+                    eprintln!("Please manually delete the file if needed: {}", install_path.display());
+                }
+            }
         }
         Ok(meta) if meta.is_dir() => {
             // Only remove real directories that were explicitly installed as copies.
             if link_type == "copy" {
-                std::fs::remove_dir_all(&install_path)
-                    .map_err(|e| format!("Failed to remove copied skill directory: {}", e))?;
+                // Try up to 3 times if permission denied
+                let mut remove_result = std::fs::remove_dir_all(&install_path);
+                let mut retry_count = 0;
+                
+                // Retry up to 3 times with small delays if permission denied
+                while retry_count < 3 && remove_result.is_err() && 
+                      remove_result.as_ref().unwrap_err().kind() == std::io::ErrorKind::PermissionDenied {
+                    eprintln!("Retrying to remove copied directory at {} (attempt {}/3)", install_path.display(), retry_count + 1);
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                    retry_count += 1;
+                    remove_result = std::fs::remove_dir_all(&install_path);
+                }
+                
+                if let Err(e) = remove_result {
+                    // Log the error but don't fail completely - still clean up DB
+                    eprintln!("Failed to remove copied skill directory at {} after {} attempts: {}", install_path.display(), retry_count + 1, e);
+                    // For permission errors, log detailed message but continue
+                    if e.kind() == std::io::ErrorKind::PermissionDenied {
+                        eprintln!("Permission denied when removing copied directory at {}: {}", install_path.display(), e);
+                        eprintln!("Uninstall will continue and clean up database record.");
+                        eprintln!("Please manually delete the directory if needed: {}", install_path.display());
+                    }
+                }
             } else {
-                return Err(format!(
-                    "Path '{}' exists but is not a symlink. Refusing to delete.",
-                    install_path.display()
-                ));
+                // Don't fail completely, still clean up DB
+                eprintln!("Path '{}' exists but is not a symlink. Will still clean up DB record.", install_path.display());
             }
         }
         Ok(_) => {
-            return Err(format!(
-                "Path '{}' exists but is not a symlink. Refusing to delete.",
-                install_path.display()
-            ));
+            // Don't fail completely, still clean up DB
+            eprintln!("Path '{}' exists but is not a symlink or directory. Will still clean up DB record.", install_path.display());
         }
         Err(_) => {
             // Path doesn't exist — still clean up the DB record.

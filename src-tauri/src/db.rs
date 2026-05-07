@@ -1057,7 +1057,7 @@ pub fn builtin_agents() -> Vec<Agent> {
             "central",
             "Central Skills",
             "central",
-            ".agents/skills",
+            ".trae-cn/skills",
             None,
             "central",
         ),

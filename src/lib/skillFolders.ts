@@ -6,7 +6,6 @@ export interface SkillFolderGroup<TSkill> {
   path: string;
   skillCount: number;
   linkedAgentCount: number;
-  readOnlyAgentCount: number;
   skills: TSkill[];
 }
 
@@ -15,7 +14,6 @@ export interface SplitSkillsByTopLevelOptions<TSkill> {
   rootPath: string;
   getDirPaths: (skill: TSkill) => string | null | undefined | Array<string | null | undefined>;
   getLinkedAgentIds?: (skill: TSkill) => readonly string[] | null | undefined;
-  getReadOnlyAgentIds?: (skill: TSkill) => readonly string[] | null | undefined;
 }
 
 export function normalizeFsPath(path: string): string {
@@ -54,7 +52,6 @@ export function splitSkillsByTopLevel<TSkill>({
   rootPath,
   getDirPaths,
   getLinkedAgentIds,
-  getReadOnlyAgentIds,
 }: SplitSkillsByTopLevelOptions<TSkill>) {
   const rootSkills: TSkill[] = [];
   const groups = new Map<string, SkillFolderGroup<TSkill>>();
@@ -82,7 +79,6 @@ export function splitSkillsByTopLevel<TSkill>({
         path: `${normalizeFsPath(rootPath)}/${folderName}`,
         skillCount: 0,
         linkedAgentCount: 0,
-        readOnlyAgentCount: 0,
         skills: [],
       };
 
@@ -90,9 +86,6 @@ export function splitSkillsByTopLevel<TSkill>({
     group.skillCount = group.skills.length;
     group.linkedAgentCount = uniqueCount(
       group.skills.flatMap((item) => [...(getLinkedAgentIds?.(item) ?? [])])
-    );
-    group.readOnlyAgentCount = uniqueCount(
-      group.skills.flatMap((item) => [...(getReadOnlyAgentIds?.(item) ?? [])])
     );
     groups.set(folderName, group);
   }

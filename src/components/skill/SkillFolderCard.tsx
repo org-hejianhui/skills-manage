@@ -10,7 +10,6 @@ interface SkillFolderCardProps {
   path: string;
   skillCount: number;
   linkedAgentCount?: number;
-  readOnlyAgentCount?: number;
   isSymlink?: boolean;
   previewNames?: string[];
   onOpen: () => void;
@@ -25,7 +24,6 @@ export function SkillFolderCard({
   path,
   skillCount,
   linkedAgentCount = 0,
-  readOnlyAgentCount = 0,
   isSymlink = false,
   previewNames = [],
   onOpen,
@@ -66,9 +64,6 @@ export function SkillFolderCard({
             <span>{t("skillFolder.skillCount", { count: skillCount })}</span>
             {linkedAgentCount > 0 && (
               <span>{t("skillFolder.platformCount", { count: linkedAgentCount })}</span>
-            )}
-            {readOnlyAgentCount > 0 && (
-              <span>{t("skillFolder.sharedCount", { count: readOnlyAgentCount })}</span>
             )}
           </div>
           {preview && (

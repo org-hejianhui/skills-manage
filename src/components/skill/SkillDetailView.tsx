@@ -155,7 +155,6 @@ interface PlatformToggleGroupProps {
   agents: AgentWithStatus[];
   skillName: string;
   installationMap: Map<string, SkillInstallation>;
-  readOnlyAgentIds: Set<string>;
   installingAgentId: string | null;
   onToggle: (agentId: string) => void;
 }
@@ -165,7 +164,6 @@ function PlatformToggleGroup({
   agents,
   skillName,
   installationMap,
-  readOnlyAgentIds,
   installingAgentId,
   onToggle,
 }: PlatformToggleGroupProps) {
@@ -182,8 +180,8 @@ function PlatformToggleGroup({
             key={agent.id}
             agent={agent}
             skillName={skillName}
-            isInstalled={installationMap.has(agent.id) || readOnlyAgentIds.has(agent.id)}
-            isReadOnly={readOnlyAgentIds.has(agent.id)}
+            isInstalled={installationMap.has(agent.id)}
+            isReadOnly={false}
             isLoading={installingAgentId === agent.id}
             onToggle={() => onToggle(agent.id)}
           />
@@ -637,14 +635,10 @@ export function SkillDetailView({
   const installationMap = new Map<string, SkillInstallation>(
     (detail?.installations ?? []).map((inst) => [inst.agent_id, inst])
   );
-  const readOnlyAgentIds = new Set(detail?.read_only_agents ?? []);
   const skillCollections = detail?.collections ?? [];
-
-  // ── Handlers ─────────────────────────────────────────────────────────────
 
   async function handleToggle(agentId: string) {
     if (!skillId || detail?.is_read_only) return;
-    if (readOnlyAgentIds.has(agentId)) return;
     const isInstalled = installationMap.has(agentId);
     try {
       if (isInstalled) {
@@ -1175,7 +1169,6 @@ export function SkillDetailView({
                             agents={lobsterAgents}
                             skillName={detail.name}
                             installationMap={installationMap}
-                            readOnlyAgentIds={readOnlyAgentIds}
                             installingAgentId={installingAgentId}
                             onToggle={handleToggle}
                           />
@@ -1184,7 +1177,6 @@ export function SkillDetailView({
                             agents={codingAgents}
                             skillName={detail.name}
                             installationMap={installationMap}
-                            readOnlyAgentIds={readOnlyAgentIds}
                             installingAgentId={installingAgentId}
                             onToggle={handleToggle}
                           />
