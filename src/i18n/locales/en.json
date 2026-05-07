@@ -484,11 +484,19 @@
     "selectAll": "Select all visible",
     "deselectAll": "Deselect all",
     "openInFileManager": "Open in file manager",
+    "renameProject": "Rename project",
+    "doubleClickToRename": "Double-click to rename",
+    "confirmRename": "Confirm rename",
     "openPathError": "Failed to open path: {{error}}",
     "loadContentError": "Failed to load content.",
     "filePath": "File Path",
     "platform": "Platform",
-    "project": "Project"
+    "project": "Project",
+    "addDirectory": "Add Directory",
+    "addDirPlaceholder": "e.g. ~/projects/my-project",
+    "addDirPathRequired": "Directory path cannot be empty",
+    "addDirSuccess": "Directory added successfully",
+    "noCandidateDirs": "No candidate directories found. Add one manually."
   },
   "marketplace": {
     "title": "Marketplace",

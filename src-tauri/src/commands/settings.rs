@@ -29,6 +29,7 @@ pub async fn add_scan_directory_impl(
 /// Remove a custom (non-builtin) scan directory by path.
 /// Returns an error if the directory is built-in or not found.
 pub async fn remove_scan_directory_impl(pool: &DbPool, path: &str) -> Result<(), String> {
+    let _ = db::delete_discovered_skills_by_scan_root(pool, path).await;
     db::remove_scan_directory(pool, path).await
 }
 

@@ -8,6 +8,8 @@ import {
   ArrowUpRight,
   StopCircle,
   X,
+  Pencil,
+  Check,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
@@ -29,6 +31,136 @@ import { VirtualizedList } from "@/components/ui/virtualized-list";
 import { getPathBasename } from "@/lib/path";
 import { buildSearchText, normalizeSearchQuery } from "@/lib/search";
 import { isEnabledInstallTargetAgent } from "@/lib/agents";
+
+// ─── Editable Project Name ────────────────────────────────────────────────────
+
+function EditableProjectName({
+  projectPath,
+  projectName,
+  variant = "sidebar",
+}: {
+  projectPath: string;
+  projectName: string;
+  variant?: "sidebar" | "header";
+}) {
+  const { t } = useTranslation();
+  const renameProject = useDiscoverStore((s) => s.renameProject);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(projectName);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
+  const handleStartEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditValue(projectName);
+    setIsEditing(true);
+  };
+
+  const handleConfirm = async () => {
+    const trimmed = editValue.trim();
+    if (trimmed && trimmed !== projectName) {
+      await renameProject(projectPath, trimmed);
+    }
+    setIsEditing(false);
+  };
+
+  const handleCancel = () => {
+    setIsEditing(false);
+    setEditValue(projectName);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleConfirm();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      handleCancel();
+    }
+  };
+
+  if (isEditing) {
+    if (variant === "sidebar") {
+      return (
+        <div className="flex items-center gap-1 flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
+          <input
+            ref={inputRef}
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onBlur={handleConfirm}
+            className="text-sm bg-background border border-primary rounded px-1 py-0.5 w-full min-w-0 outline-none"
+            maxLength={100}
+          />
+        </div>
+      );
+    }
+    return (
+      <div className="flex items-center gap-1 min-w-0 flex-1">
+        <input
+          ref={inputRef}
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onBlur={handleConfirm}
+          className="text-sm font-semibold bg-background border border-primary rounded px-1 py-0.5 w-full min-w-0 outline-none"
+          maxLength={100}
+        />
+        <button
+          onClick={(e) => { e.stopPropagation(); handleConfirm(); }}
+          className="shrink-0 p-0.5 rounded hover:bg-muted cursor-pointer"
+          title={t("discover.confirmRename")}
+        >
+          <Check className="size-3 text-primary" />
+        </button>
+      </div>
+    );
+  }
+
+  if (variant === "sidebar") {
+    return (
+      <span
+        className="text-sm truncate flex-1 group/name relative"
+        onDoubleClick={handleStartEdit}
+        title={t("discover.doubleClickToRename")}
+      >
+        {projectName}
+        <button
+          onClick={handleStartEdit}
+          className="absolute right-0 top-1/2 -translate-y-1/2 opacity-0 group-hover/name:opacity-100 transition-opacity p-0.5 rounded hover:bg-muted cursor-pointer"
+          title={t("discover.renameProject")}
+        >
+          <Pencil className="size-3 text-muted-foreground" />
+        </button>
+      </span>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1.5 min-w-0 group/name">
+      <h2
+        className="text-sm font-semibold truncate cursor-text"
+        onDoubleClick={handleStartEdit}
+        title={t("discover.doubleClickToRename")}
+      >
+        {projectName}
+      </h2>
+      <button
+        onClick={handleStartEdit}
+        className="shrink-0 opacity-0 group-hover/name:opacity-100 transition-opacity p-0.5 rounded hover:bg-muted cursor-pointer"
+        title={t("discover.renameProject")}
+      >
+        <Pencil className="size-3 text-muted-foreground" />
+      </button>
+    </div>
+  );
+}
 
 // ─── Empty State ──────────────────────────────────────────────────────────────
 
@@ -523,7 +655,7 @@ export function DiscoverView() {
                     )}
                   >
                     <Folder className={cn("size-3.5 shrink-0", isActive ? "text-primary" : "text-muted-foreground")} />
-                    <span className="text-sm truncate flex-1">{project.project_name}</span>
+                    <EditableProjectName projectPath={project.project_path} projectName={project.project_name} variant="sidebar" />
                     <span className="text-[10px] font-mono tabular-nums text-muted-foreground shrink-0">
                       {project.skills.length}
                     </span>
@@ -544,7 +676,7 @@ export function DiscoverView() {
                   className="flex items-center gap-2 w-full px-3 py-2 text-left transition-colors cursor-pointer border-l-2 rounded-md bg-primary/10 border-primary/60 text-foreground font-medium"
                 >
                   <Folder className="size-3.5 shrink-0 text-primary" />
-                  <span className="text-sm truncate flex-1">{selectedProject.project_name}</span>
+                  <EditableProjectName projectPath={selectedProject.project_path} projectName={selectedProject.project_name} variant="sidebar" />
                   <span className="text-[10px] font-mono tabular-nums text-muted-foreground shrink-0">
                     {selectedProject.skills.length}
                   </span>
@@ -561,7 +693,7 @@ export function DiscoverView() {
               {/* Project header + skill search */}
               <div className="px-6 py-3 border-b border-border flex items-center gap-3">
                 <div className="min-w-0 flex-1">
-                  <h2 className="text-sm font-semibold truncate">{selectedProject.project_name}</h2>
+                  <EditableProjectName projectPath={selectedProject.project_path} projectName={selectedProject.project_name} variant="header" />
                   <button
                     type="button"
                     onClick={() => handleOpenProjectPath(selectedProject.project_path)}

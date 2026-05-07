@@ -83,6 +83,8 @@ interface DiscoverState {
     method?: "symlink" | "copy"
   ) => Promise<DiscoverImportResult>;
   clearResults: () => Promise<void>;
+  renameProject: (projectPath: string, newName: string) => Promise<void>;
+  removeProjectsByPath: (rootPath: string) => void;
   setGroupBy: (groupBy: "project" | "platform" | "skill") => void;
   setPlatformFilter: (platformId: string | null) => void;
   setSearchQuery: (query: string) => void;
@@ -433,6 +435,44 @@ export const useDiscoverStore = create<DiscoverState>((set, get) => ({
     } catch (err) {
       set({ error: String(err) });
     }
+  },
+
+  renameProject: async (projectPath: string, newName: string) => {
+    try {
+      await invoke("rename_discovered_project", {
+        projectPath,
+        newName,
+      });
+      set((state) => ({
+        discoveredProjects: state.discoveredProjects.map((p) =>
+          p.project_path === projectPath
+            ? {
+                ...p,
+                project_name: newName,
+                skills: p.skills.map((s) => ({
+                  ...s,
+                  project_name: newName,
+                })),
+              }
+            : p
+        ),
+      }));
+    } catch (err) {
+      set({ error: String(err) });
+    }
+  },
+
+  removeProjectsByPath: (rootPath: string) => {
+    set((state) => {
+      const remaining = state.discoveredProjects.filter(
+        (p) => p.project_path !== rootPath && !p.project_path.startsWith(rootPath)
+      );
+      const totalSkills = remaining.reduce((sum, p) => sum + p.skills.length, 0);
+      return {
+        discoveredProjects: remaining,
+        totalSkillsFound: totalSkills,
+      };
+    });
   },
 
   // ── Grouping / Filtering ───────────────────────────────────────────────────

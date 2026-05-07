@@ -2015,6 +2015,22 @@ pub async fn insert_discovered_skill(
     .map_err(|e| e.to_string())
 }
 
+pub async fn rename_project_name(
+    pool: &DbPool,
+    project_path: &str,
+    new_name: &str,
+) -> Result<(), String> {
+    sqlx::query(
+        "UPDATE discovered_skills SET project_name = ? WHERE project_path = ?",
+    )
+    .bind(new_name)
+    .bind(project_path)
+    .execute(pool)
+    .await
+    .map(|_| ())
+    .map_err(|e| e.to_string())
+}
+
 /// Retrieve a discovered skill by its qualified ID.
 pub async fn get_discovered_skill_by_id(
     pool: &DbPool,
@@ -2045,6 +2061,17 @@ pub async fn delete_discovered_skill(pool: &DbPool, id: &str) -> Result<(), Stri
         .await
         .map(|_| ())
         .map_err(|e| e.to_string())
+}
+
+pub async fn delete_discovered_skills_by_scan_root(pool: &DbPool, root_path: &str) -> Result<usize, String> {
+    let pattern = format!("{}%", root_path);
+    let result = sqlx::query("DELETE FROM discovered_skills WHERE project_path = ? OR project_path LIKE ?")
+        .bind(root_path)
+        .bind(&pattern)
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(result.rows_affected() as usize)
 }
 
 /// Clear all discovered skills.

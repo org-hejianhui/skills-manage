@@ -18,6 +18,7 @@ import { Switch } from "@/components/ui/switch";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useThemeStore, CatppuccinFlavor, CatppuccinAccent, ACCENT_NAMES } from "@/stores/themeStore";
 import { usePlatformStore } from "@/stores/platformStore";
+import { useDiscoverStore } from "@/stores/discoverStore";
 import { AddDirectoryDialog } from "@/components/settings/AddDirectoryDialog";
 import { PlatformDialog } from "@/components/settings/PlatformDialog";
 import { Input } from "@/components/ui/input";
@@ -337,7 +338,7 @@ export function SettingsView() {
     setScanDirError(null);
     try {
       await removeScanDirectory(path);
-      // Trigger rescan after removing a directory.
+      useDiscoverStore.getState().removeProjectsByPath(path);
       await refreshCounts();
       toast.success(t("common.delete") + " ✓");
     } catch (err) {

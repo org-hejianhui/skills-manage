@@ -8,6 +8,10 @@ vi.mock("../stores/discoverStore", () => ({
   useDiscoverStore: vi.fn(),
 }));
 
+vi.mock("../stores/settingsStore", () => ({
+  useSettingsStore: vi.fn(),
+}));
+
 vi.mock("../stores/platformStore", () => ({
   usePlatformStore: vi.fn(),
 }));
@@ -27,23 +31,38 @@ vi.mock("react-i18next", () => ({
         "discover.noRootsEnabled": "No scan roots enabled. Select at least one directory.",
         "discover.startScan": "Start Scan",
         "discover.scanning": "Scanning...",
+        "discover.addDirectory": "Add Directory",
+        "discover.addDirPlaceholder": "e.g. ~/projects/my-project",
+        "discover.addDirPathRequired": "Directory path cannot be empty",
+        "discover.addDirSuccess": "Directory added successfully",
+        "discover.noCandidateDirs": "No candidate directories found. Add one manually.",
         "common.cancel": "Cancel",
         "common.loading": "Loading...",
+        "common.add": "Add",
+        "common.delete": "Delete",
       };
       return map[key] ?? key;
     },
   }),
 }));
 
+vi.mock("sonner", () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
 import { useDiscoverStore } from "../stores/discoverStore";
+import { useSettingsStore } from "../stores/settingsStore";
 import { usePlatformStore } from "../stores/platformStore";
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
 const mockScanRoots: ScanRoot[] = [
-  { path: "/home/user/Documents", label: "Documents", exists: true, enabled: true },
-  { path: "/home/user/projects", label: "projects", exists: true, enabled: false },
-  { path: "/home/user/nonexistent", label: "nonexistent", exists: false, enabled: false },
+  { path: "/home/user/Documents", label: "Documents", exists: true, enabled: true, is_custom: false },
+  { path: "/home/user/projects", label: "projects", exists: true, enabled: false, is_custom: false },
+  { path: "/home/user/nonexistent", label: "nonexistent", exists: false, enabled: false, is_custom: false },
 ];
 
 const mockAgents: AgentWithStatus[] = [
@@ -79,6 +98,9 @@ const mockAgents: AgentWithStatus[] = [
 const mockLoadScanRoots = vi.fn();
 const mockSetScanRootEnabled = vi.fn();
 const mockStartScan = vi.fn();
+const mockRemoveProjectsByPath = vi.fn();
+const mockAddScanDirectory = vi.fn();
+const mockRemoveScanDirectory = vi.fn();
 
 function buildDiscoverStoreState(overrides = {}) {
   return {
@@ -87,6 +109,7 @@ function buildDiscoverStoreState(overrides = {}) {
     loadScanRoots: mockLoadScanRoots,
     setScanRootEnabled: mockSetScanRootEnabled,
     startScan: mockStartScan,
+    removeProjectsByPath: mockRemoveProjectsByPath,
     ...overrides,
   };
 }
@@ -94,6 +117,14 @@ function buildDiscoverStoreState(overrides = {}) {
 function buildPlatformStoreState(overrides = {}) {
   return {
     agents: mockAgents,
+    ...overrides,
+  };
+}
+
+function buildSettingsStoreState(overrides = {}) {
+  return {
+    addScanDirectory: mockAddScanDirectory,
+    removeScanDirectory: mockRemoveScanDirectory,
     ...overrides,
   };
 }
@@ -115,6 +146,10 @@ describe("DiscoverConfigDialog", () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     vi.mocked(useDiscoverStore).mockImplementation((selector: any) =>
       selector(buildDiscoverStoreState())
+    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    vi.mocked(useSettingsStore).mockImplementation((selector: any) =>
+      selector(buildSettingsStoreState())
     );
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     vi.mocked(usePlatformStore).mockImplementation((selector: any) =>
@@ -335,8 +370,8 @@ describe("DiscoverConfigDialog", () => {
     vi.mocked(useDiscoverStore).mockImplementation((selector: any) =>
       selector(buildDiscoverStoreState({
         scanRoots: [
-          { path: "/home/user/Documents", label: "Documents", exists: true, enabled: false },
-          { path: "/home/user/nonexistent", label: "nonexistent", exists: false, enabled: false },
+          { path: "/home/user/Documents", label: "Documents", exists: true, enabled: false, is_custom: false },
+          { path: "/home/user/nonexistent", label: "nonexistent", exists: false, enabled: false, is_custom: false },
         ],
       }))
     );
@@ -365,5 +400,27 @@ describe("DiscoverConfigDialog", () => {
     // The third root (/home/user/nonexistent) doesn't exist
     // shadcn/ui Checkbox uses aria-disabled instead of native disabled
     expect(checkboxes[2]).toHaveAttribute("aria-disabled", "true");
+  });
+
+  // ── Custom directories ────────────────────────────────────────────────────
+
+  it("renders Add Directory button", () => {
+    renderDialog();
+    expect(screen.getByText("Add Directory")).toBeInTheDocument();
+  });
+
+  it("shows delete button for custom scan roots", () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    vi.mocked(useDiscoverStore).mockImplementation((selector: any) =>
+      selector(buildDiscoverStoreState({
+        scanRoots: [
+          { path: "/home/user/my-custom-dir", label: "my-custom-dir", exists: true, enabled: true, is_custom: true },
+          { path: "/home/user/Documents", label: "Documents", exists: true, enabled: true, is_custom: false },
+        ],
+      }))
+    );
+
+    renderDialog();
+    expect(screen.getByText("/home/user/my-custom-dir")).toBeInTheDocument();
   });
 });

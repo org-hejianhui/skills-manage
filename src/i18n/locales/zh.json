@@ -484,11 +484,19 @@
     "selectAll": "全选可见",
     "deselectAll": "取消全选",
     "openInFileManager": "在文件管理器中打开",
+    "renameProject": "重命名项目",
+    "doubleClickToRename": "双击重命名",
+    "confirmRename": "确认重命名",
     "openPathError": "打开路径失败：{{error}}",
     "loadContentError": "加载内容失败。",
     "filePath": "文件路径",
     "platform": "平台",
-    "project": "项目"
+    "project": "项目",
+    "addDirectory": "添加目录",
+    "addDirPlaceholder": "例如: ~/projects/my-project",
+    "addDirPathRequired": "目录路径不能为空",
+    "addDirSuccess": "目录添加成功",
+    "noCandidateDirs": "未找到候选目录，请手动添加。"
   },
   "marketplace": {
     "title": "技能市场",

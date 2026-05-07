@@ -308,6 +308,7 @@ function buildDiscoverStoreState(overrides = {}) {
     stopScan: mockStopScan,
     setScanRootEnabled: vi.fn(),
     clearResults: vi.fn(),
+    renameProject: vi.fn(),
     selectAllVisible: vi.fn(),
     refreshCounts: mockRefreshDiscoverCounts,
     rescanFromDisk: mockRescanFromDisk,

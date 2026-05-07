@@ -23,6 +23,7 @@ pub struct ScanRoot {
     pub label: String,
     pub exists: bool,
     pub enabled: bool,
+    pub is_custom: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -217,7 +218,8 @@ fn scan_root_from_candidate(path: String, label: &str) -> ScanRoot {
         path,
         label: label.to_string(),
         exists,
-        enabled: exists, // auto-enable roots that exist
+        enabled: exists,
+        is_custom: false,
     }
 }
 
@@ -362,6 +364,7 @@ async fn build_scan_roots(pool: &DbPool, defaults: Vec<ScanRoot>) -> Result<Vec<
             Some(ScanRoot {
                 path,
                 exists,
+                is_custom: false,
                 ..root
             })
         })
@@ -399,6 +402,7 @@ async fn build_scan_roots(pool: &DbPool, defaults: Vec<ScanRoot>) -> Result<Vec<
             label: label_for_custom_scan_root(&path, dir.label.as_deref()),
             exists: Path::new(&path).exists(),
             enabled: dir.is_active,
+            is_custom: true,
         });
     }
 
@@ -496,16 +500,12 @@ const SKIP_DIRS: &[&str] = &[
 ///   they are typically user config dirs, not project directories.
 /// - At deeper levels, allow hidden directories so we can detect platform
 ///   skill patterns like `.claude/skills/` inside project dirs.
-fn should_skip_dir(name: &str, depth: u32) -> bool {
-    // Always skip known heavy directories.
+fn should_skip_dir(name: &str, depth: u32, skip_root_hidden: bool) -> bool {
     if SKIP_DIRS.contains(&name) {
         return true;
     }
 
-    // At root level, skip hidden directories (dot-prefixed).
-    // These are typically user config dirs (~/.config, ~/.local, etc.),
-    // not project directories containing skills.
-    if depth == 0 && name.starts_with('.') {
+    if depth == 0 && name.starts_with('.') && skip_root_hidden {
         return true;
     }
 
@@ -873,6 +873,75 @@ fn scan_regular_project_dir(
     project_skills
 }
 
+fn detect_platform_from_path(path: &Path) -> (String, String) {
+    for agent in db::builtin_agents() {
+        if let Some(ref project_skills_dir) = agent.project_skills_dir {
+            let pattern = PathBuf::from(project_skills_dir);
+            if path.ends_with(&pattern) {
+                return (agent.id.clone(), agent.display_name.clone());
+            }
+        }
+    }
+    ("custom".to_string(), "Custom".to_string())
+}
+
+fn project_name_for_custom_root(path: &Path) -> String {
+    for agent in db::builtin_agents() {
+        if let Some(ref project_skills_dir) = agent.project_skills_dir {
+            let pattern = PathBuf::from(project_skills_dir);
+            if path.ends_with(&pattern) {
+                if let Some(parent) = path.parent().and_then(|p| p.parent()) {
+                    return file_name_or_unknown(parent);
+                }
+            }
+        }
+    }
+    file_name_or_unknown(path)
+}
+
+fn scan_custom_root_as_skill_dir(
+    root: &Path,
+    central_dir: &Path,
+) -> Vec<DiscoveredSkill> {
+    let (agent_id, display_name) = detect_platform_from_path(root);
+    let project_name = project_name_for_custom_root(root);
+    let project_path = root.to_string_lossy().into_owned();
+
+    let scanned = super::scanner::scan_skill_root(
+        root,
+        false,
+        super::scanner::ScanDirectoryOptions::nested(),
+    );
+
+    let mut skills = Vec::new();
+    for skill in scanned {
+        let qualified_id = format!(
+            "{}__{}__{}",
+            agent_id,
+            project_name.to_lowercase().replace(' ', "-"),
+            skill.id
+        );
+
+        let skill_dir_name = selected_skill_dir_name(&skill.dir_path);
+        let central_skill_path = central_dir.join(skill_dir_name);
+        let is_already_central = central_skill_path.exists();
+
+        skills.push(DiscoveredSkill {
+            id: qualified_id,
+            name: skill.name,
+            description: skill.description,
+            file_path: skill.file_path,
+            dir_path: skill.dir_path,
+            platform_id: agent_id.clone(),
+            platform_name: display_name.clone(),
+            project_path: project_path.clone(),
+            project_name: project_name.clone(),
+            is_already_central,
+        });
+    }
+    skills
+}
+
 /// Recursively walk a scan root directory, looking for project-level skill dirs.
 ///
 /// Traverses subdirectories up to `MAX_SCAN_DEPTH` levels deep, checking each
@@ -900,6 +969,7 @@ fn scan_root_for_projects(
         label: file_name_or_unknown(root),
         exists: root.exists(),
         enabled: true,
+        is_custom: false,
     };
     let mut allowed_obsidian_vault_paths =
         allowed_obsidian_vault_paths_for_roots_with_registry(&[&root_scan], Path::new(""));
@@ -911,6 +981,7 @@ fn scan_root_for_projects(
         &mut seen_project_paths,
         &mut projects,
         &allowed_obsidian_vault_paths,
+        true,
     );
     projects
 }
@@ -940,6 +1011,7 @@ fn scan_root_for_projects_with_seen(
     seen_project_paths: &mut HashSet<String>,
     projects: &mut Vec<DiscoveredProject>,
     allowed_obsidian_vault_paths: &HashSet<String>,
+    skip_root_hidden: bool,
 ) {
     scan_root_recursive(
         root,
@@ -949,6 +1021,7 @@ fn scan_root_for_projects_with_seen(
         projects,
         seen_project_paths,
         allowed_obsidian_vault_paths,
+        skip_root_hidden,
     );
 }
 
@@ -963,6 +1036,7 @@ fn scan_root_recursive(
     projects: &mut Vec<DiscoveredProject>,
     seen_project_paths: &mut HashSet<String>,
     allowed_obsidian_vault_paths: &HashSet<String>,
+    skip_root_hidden: bool,
 ) {
     if depth > MAX_SCAN_DEPTH {
         return;
@@ -1001,6 +1075,16 @@ fn scan_root_recursive(
                 project_name: file_name_or_unknown(current_dir),
                 skills: project_skills,
             });
+        } else if !skip_root_hidden {
+            let custom_skills = scan_custom_root_as_skill_dir(current_dir, central_dir);
+            if !custom_skills.is_empty() {
+                seen_project_paths.insert(current_path_key.clone());
+                projects.push(DiscoveredProject {
+                    project_path: current_path_key,
+                    project_name: project_name_for_custom_root(current_dir),
+                    skills: custom_skills,
+                });
+            }
         }
     }
 
@@ -1031,7 +1115,7 @@ fn scan_root_recursive(
             .unwrap_or("");
 
         // Skip directories that should never be traversed.
-        if should_skip_dir(dir_name, depth) {
+        if should_skip_dir(dir_name, depth, skip_root_hidden) {
             continue;
         }
 
@@ -1043,6 +1127,7 @@ fn scan_root_recursive(
             projects,
             seen_project_paths,
             allowed_obsidian_vault_paths,
+            skip_root_hidden,
         );
     }
 }
@@ -1147,6 +1232,7 @@ where
             &mut seen_project_paths,
             &mut all_projects,
             &allowed_obsidian_vault_paths,
+            !root.is_custom,
         );
         let found_projects: Vec<DiscoveredProject> = all_projects[before_project_count..].to_vec();
         let root_completed = !is_scan_cancelled();
@@ -1688,6 +1774,19 @@ pub async fn clear_discovered_skills(state: State<'_, AppState>) -> Result<(), S
     db::clear_all_discovered_skills(&state.db).await
 }
 
+#[tauri::command]
+pub async fn rename_discovered_project(
+    state: State<'_, AppState>,
+    project_path: String,
+    new_name: String,
+) -> Result<(), String> {
+    let trimmed = new_name.trim();
+    if trimmed.is_empty() {
+        return Err("Project name cannot be empty".to_string());
+    }
+    db::rename_project_name(&state.db, &project_path, trimmed).await
+}
+
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -1846,6 +1945,7 @@ mod tests {
             label: "test".to_string(),
             exists,
             enabled,
+            is_custom: false,
         }
     }
 
@@ -2034,6 +2134,7 @@ mod tests {
             label: "iCloud".to_string(),
             exists: true,
             enabled: true,
+            is_custom: false,
         };
 
         let allowed =
@@ -2083,6 +2184,7 @@ mod tests {
             label: "home".to_string(),
             exists: true,
             enabled: true,
+            is_custom: false,
         };
 
         let allowed =
@@ -2159,6 +2261,7 @@ mod tests {
             label: "iCloud".to_string(),
             exists: true,
             enabled: true,
+            is_custom: false,
         }];
 
         let result = start_project_scan_impl(&pool, roots, &central_dir, |_| {})
@@ -2324,6 +2427,7 @@ mod tests {
                 label: "iCloud".to_string(),
                 exists: true,
                 enabled: true,
+                is_custom: false,
             }],
         )
         .await
@@ -2464,6 +2568,7 @@ mod tests {
                 label: "iCloud".to_string(),
                 exists: true,
                 enabled: true,
+                is_custom: false,
             }],
         )
         .await
@@ -3059,12 +3164,14 @@ mod tests {
                 label: CROSS_AREA_FIXTURE_VAULT_NAME.to_string(),
                 exists: true,
                 enabled: true,
+                is_custom: false,
             },
             ScanRoot {
                 path: ordinary_project.to_string_lossy().to_string(),
                 label: "ordinary-project".to_string(),
                 exists: true,
                 enabled: true,
+                is_custom: false,
             },
         ];
 
@@ -4269,32 +4376,37 @@ mod tests {
     #[tokio::test]
     async fn test_should_skip_dir_rules() {
         // Always-skipped directories.
-        assert!(should_skip_dir("node_modules", 0));
-        assert!(should_skip_dir("node_modules", 5));
-        assert!(should_skip_dir("target", 0));
-        assert!(should_skip_dir("target", 3));
-        assert!(should_skip_dir(".git", 0));
-        assert!(should_skip_dir(".git", 5));
-        assert!(should_skip_dir("build", 0));
-        assert!(should_skip_dir("dist", 0));
-        assert!(should_skip_dir("__pycache__", 0));
-        assert!(should_skip_dir(".cache", 0));
+        assert!(should_skip_dir("node_modules", 0, true));
+        assert!(should_skip_dir("node_modules", 5, true));
+        assert!(should_skip_dir("target", 0, true));
+        assert!(should_skip_dir("target", 3, true));
+        assert!(should_skip_dir(".git", 0, true));
+        assert!(should_skip_dir(".git", 5, true));
+        assert!(should_skip_dir("build", 0, true));
+        assert!(should_skip_dir("dist", 0, true));
+        assert!(should_skip_dir("__pycache__", 0, true));
+        assert!(should_skip_dir(".cache", 0, true));
 
-        // Hidden dirs at root level (depth 0) should be skipped.
-        assert!(should_skip_dir(".config", 0));
-        assert!(should_skip_dir(".local", 0));
-        assert!(should_skip_dir(".hidden-project", 0));
+        // Hidden dirs at root level (depth 0) should be skipped for default roots.
+        assert!(should_skip_dir(".config", 0, true));
+        assert!(should_skip_dir(".local", 0, true));
+        assert!(should_skip_dir(".hidden-project", 0, true));
+
+        // Hidden dirs at root level (depth 0) should NOT be skipped for custom roots.
+        assert!(!should_skip_dir(".config", 0, false));
+        assert!(!should_skip_dir(".claude", 0, false));
+        assert!(!should_skip_dir(".hidden-project", 0, false));
 
         // Hidden dirs at deeper levels should NOT be skipped
         // (they might contain platform patterns like .claude).
-        assert!(!should_skip_dir(".claude", 1));
-        assert!(!should_skip_dir(".hidden-project", 2));
+        assert!(!should_skip_dir(".claude", 1, true));
+        assert!(!should_skip_dir(".hidden-project", 2, true));
 
         // Normal directories should never be skipped.
-        assert!(!should_skip_dir("my-project", 0));
-        assert!(!should_skip_dir("src", 0));
-        assert!(!should_skip_dir("Documents", 0));
-        assert!(!should_skip_dir("projects", 1));
+        assert!(!should_skip_dir("my-project", 0, true));
+        assert!(!should_skip_dir("src", 0, true));
+        assert!(!should_skip_dir("Documents", 0, true));
+        assert!(!should_skip_dir("projects", 1, true));
     }
 
     // ── Cache reconciliation tests ─────────────────────────────────────────────
@@ -4357,6 +4469,7 @@ mod tests {
             label: "test".to_string(),
             exists: true,
             enabled: true,
+            is_custom: false,
         };
 
         let found_ids = vec!["claude-code__project__real-skill".to_string()];
@@ -4407,6 +4520,7 @@ mod tests {
             label: "test".to_string(),
             exists: true,
             enabled: true,
+            is_custom: false,
         };
 
         let found_ids: Vec<String> = vec![];
@@ -4995,5 +5109,118 @@ mod tests {
         let last_progress = last_progress.expect("progress event should be emitted");
         assert_eq!(last_progress.projects_found, 1);
         assert_eq!(last_progress.skills_found, 1);
+    }
+
+    #[tokio::test]
+    async fn test_custom_root_scans_skills_dir_directly() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let central_dir = tmp.path().join("central");
+        std::fs::create_dir_all(&central_dir).unwrap();
+
+        let skills_dir = tmp.path().join(".trae").join("skills");
+        let skill_a = skills_dir.join("deploy-skill");
+        let skill_b = skills_dir.join("build-skill");
+        std::fs::create_dir_all(&skill_a).unwrap();
+        std::fs::create_dir_all(&skill_b).unwrap();
+        std::fs::write(
+            skill_a.join("SKILL.md"),
+            "---\nname: deploy\ndescription: Deploy stuff\n---\n\n# Deploy\n",
+        )
+        .unwrap();
+        std::fs::write(
+            skill_b.join("SKILL.md"),
+            "---\nname: build\ndescription: Build stuff\n---\n\n# Build\n",
+        )
+        .unwrap();
+
+        let patterns = vec![(
+            "trae".to_string(),
+            "Trae AI".to_string(),
+            PathBuf::from(".trae/skills"),
+        )];
+
+        let mut projects = Vec::new();
+        let mut seen = HashSet::new();
+        let allowed_vaults = HashSet::new();
+
+        scan_root_for_projects_with_seen(
+            &skills_dir,
+            &patterns,
+            &central_dir,
+            &mut seen,
+            &mut projects,
+            &allowed_vaults,
+            false,
+        );
+
+        assert_eq!(projects.len(), 1, "should find 1 project from custom skills dir");
+        let project = &projects[0];
+        assert_eq!(project.skills.len(), 2, "should find 2 skills");
+        assert!(
+            project.project_name != "skills",
+            "project name should be derived from parent, not 'skills'"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_custom_root_with_platform_subdirs_still_works() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let central_dir = tmp.path().join("central");
+        std::fs::create_dir_all(&central_dir).unwrap();
+
+        let skill_dir = tmp.path().join(".claude/skills/my-skill");
+        std::fs::create_dir_all(&skill_dir).unwrap();
+        std::fs::write(
+            skill_dir.join("SKILL.md"),
+            "---\nname: my-skill\ndescription: Test\n---\n\n# Test\n",
+        )
+        .unwrap();
+
+        let patterns = vec![(
+            "claude-code".to_string(),
+            "Claude Code".to_string(),
+            PathBuf::from(".claude/skills"),
+        )];
+
+        let mut projects = Vec::new();
+        let mut seen = HashSet::new();
+        let allowed_vaults = HashSet::new();
+
+        scan_root_for_projects_with_seen(
+            tmp.path(),
+            &patterns,
+            &central_dir,
+            &mut seen,
+            &mut projects,
+            &allowed_vaults,
+            false,
+        );
+
+        assert_eq!(projects.len(), 1, "should find 1 project");
+        assert_eq!(projects[0].skills.len(), 1, "should find 1 skill via platform pattern");
+    }
+
+    #[tokio::test]
+    async fn test_detect_platform_from_path() {
+        let trae_path = PathBuf::from("D:\\dev_code\\project\\.trae\\skills");
+        let (agent_id, display_name) = detect_platform_from_path(&trae_path);
+        assert_eq!(agent_id, "trae");
+        assert_eq!(display_name, "Trae AI");
+
+        let custom_path = PathBuf::from("D:\\my-custom-skills");
+        let (agent_id, display_name) = detect_platform_from_path(&custom_path);
+        assert_eq!(agent_id, "custom");
+        assert_eq!(display_name, "Custom");
+    }
+
+    #[tokio::test]
+    async fn test_project_name_for_custom_root() {
+        let trae_path = PathBuf::from("D:\\dev_code\\sd-control-app\\.trae\\skills");
+        let name = project_name_for_custom_root(&trae_path);
+        assert_eq!(name, "sd-control-app");
+
+        let custom_path = PathBuf::from("D:\\my-custom-skills");
+        let name = project_name_for_custom_root(&custom_path);
+        assert_eq!(name, "my-custom-skills");
     }
 }
