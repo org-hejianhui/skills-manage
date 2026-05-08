@@ -383,7 +383,8 @@
     },
     "language": "Language",
     "chinese": "中文",
-    "english": "English"
+    "english": "English",
+    "maintainer": "Maintainer"
   },
   "addDir": {
     "title": "Add Project Directory",

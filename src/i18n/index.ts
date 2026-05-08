@@ -13,17 +13,15 @@ i18n
       zh: { translation: zh },
       en: { translation: en },
     },
-    // No hardcoded lng — let languageDetector read from localStorage.
-    // Falls back to Chinese when no preference is saved.
+    lng: localStorage.getItem("i18nextLng") || "zh",
     fallbackLng: "zh",
-    // Use localStorage key 'i18nextLng' (i18next default) to persist choice.
     detection: {
       order: ["localStorage", "navigator"],
       lookupLocalStorage: "i18nextLng",
       caches: ["localStorage"],
     },
     interpolation: {
-      escapeValue: false, // React already handles XSS escaping
+      escapeValue: false,
     },
   });
 

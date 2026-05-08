@@ -23,6 +23,14 @@ vi.mock("../stores/themeStore", () => ({
   ],
 }));
 
+vi.mock("../stores/discoverStore", () => ({
+  useDiscoverStore: {
+    getState: vi.fn(() => ({
+      removeProjectsByPath: vi.fn(),
+    })),
+  },
+}));
+
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
 }));

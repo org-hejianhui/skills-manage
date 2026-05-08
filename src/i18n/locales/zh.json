@@ -383,7 +383,8 @@
     },
     "language": "语言",
     "chinese": "中文",
-    "english": "English"
+    "english": "English",
+    "maintainer": "维护作者"
   },
   "addDir": {
     "title": "添加项目目录",

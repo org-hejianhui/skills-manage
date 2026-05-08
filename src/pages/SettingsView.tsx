@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Trash2, Pencil, Loader2, FolderOpen, Cpu, Info, Database, Globe, Palette, Droplets, Bot, ChevronDown, ChevronRight, KeyRound } from "lucide-react";
+import { Plus, Trash2, Pencil, Loader2, FolderOpen, Cpu, Info, Database, Globe, Palette, Droplets, Bot, ChevronDown, ChevronRight, KeyRound, User } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
@@ -957,6 +957,14 @@ export function SettingsView() {
                       {t("settings.english")}
                     </Button>
                   </div>
+                </div>
+              </div>
+              {/* ── Maintainer ──────────────────────────────────────── */}
+              <div className="flex items-center gap-3">
+                <User className="size-4 text-muted-foreground shrink-0" />
+                <div>
+                  <div className="text-xs text-muted-foreground">{t("settings.maintainer")}</div>
+                  <div className="text-sm font-medium">@短途-何建辉</div>
                 </div>
               </div>
             </div>
