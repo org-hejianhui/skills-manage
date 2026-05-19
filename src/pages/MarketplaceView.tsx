@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Search,
   Store,
@@ -261,7 +261,7 @@ export function MarketplaceView() {
 
       // Write via the Tauri FS plugin
       const { writeTextFile, mkdir, BaseDirectory } = await import("@tauri-apps/plugin-fs");
-      const skillDir = `.trae-cn/skills/${skill.name}`;
+      const skillDir = `.agents/skills/${skill.name}`;
       await mkdir(skillDir, { baseDir: BaseDirectory.Home, recursive: true });
       await writeTextFile(`${skillDir}/SKILL.md`, content, { baseDir: BaseDirectory.Home });
 

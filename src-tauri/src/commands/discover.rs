@@ -1575,7 +1575,7 @@ async fn get_discovered_skills_impl(
 
 /// Import a discovered skill to the central skills directory.
 ///
-/// Copies the skill directory from its project location to `~/.trae-cn/skills/<skill_dir_name>`,
+/// Copies the skill directory from its project location to `~/.agents/skills/<skill_dir_name>`,
 /// then records it in the skills table.
 #[tauri::command]
 pub async fn import_discovered_skill_to_central(

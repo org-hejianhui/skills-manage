@@ -489,7 +489,7 @@ fn agents_skills_compatibility_root(primary_root: &Path) -> Option<PathBuf> {
     primary_root
         .parent()
         .and_then(Path::parent)
-        .map(|home_root| home_root.join(".trae-cn/skills"))
+        .map(|home_root| home_root.join(".agents/skills"))
 }
 
 fn compatibility_scan_root(path: PathBuf) -> AgentScanRoot {

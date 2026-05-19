@@ -1,4 +1,4 @@
-import { create } from "zustand";
+﻿import { create } from "zustand";
 import { invoke, isTauriRuntime } from "@/lib/tauri";
 import { AgentWithStatus, ScanResult } from "@/types";
 
@@ -25,7 +25,7 @@ const BROWSER_FIXTURE_AGENTS: AgentWithStatus[] = [
     id: "central",
     display_name: "Central Skills",
     category: "central",
-    global_skills_dir: "~/.trae-cn/skills/",
+    global_skills_dir: "~/.agents/skills/",
     is_detected: true,
     is_builtin: true,
     is_enabled: true,

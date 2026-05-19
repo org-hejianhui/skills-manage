@@ -43,7 +43,7 @@ pub fn app_data_dir() -> PathBuf {
 }
 
 pub fn central_skills_dir() -> PathBuf {
-    resolve_home_dir().join(".trae-cn").join("skills")
+    resolve_home_dir().join(".agents").join("skills")
 }
 
 fn expand_home_path_with_home(path: &str, home_dir: &Path) -> PathBuf {

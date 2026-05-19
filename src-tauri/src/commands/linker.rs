@@ -37,8 +37,8 @@ pub struct FailedInstall {
 ///
 /// Examples:
 /// - `make_relative_path("/a/b/c", "/a/d/e/f")` -> `"../../d/e/f"`
-/// - `make_relative_path("/home/user/.claude/skills", "/home/user/.trae-cn/skills/my-skill")`
-///   -> `"../../.trae-cn/skills/my-skill"`
+/// - `make_relative_path("/home/user/.claude/skills", "/home/user/.agents/skills/my-skill")`
+///   -> `"../../.agents/skills/my-skill"`
 pub fn make_relative_path(from_dir: &Path, to_path: &Path) -> PathBuf {
     let from_components: Vec<_> = from_dir.components().collect();
     let to_components: Vec<_> = to_path.components().collect();

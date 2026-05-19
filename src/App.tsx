@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+﻿import { Routes, Route, Navigate } from "react-router-dom";
 import { AppShell } from "@/components/layout/AppShell";
 import { PlatformView } from "@/pages/PlatformView";
 import { CentralSkillsView } from "@/pages/CentralSkillsView";
@@ -17,7 +17,7 @@ function App() {
         <Route index element={<Navigate to="/central" replace />} />
         {/* Platform view: lists skills for a specific agent */}
         <Route path="platform/:agentId" element={<PlatformView />} />
-        {/* Central Skills: canonical ~/.trae-cn/skills/ view */}
+        {/* Central Skills: canonical ~/.agents/skills/ view */}
         <Route path="central" element={<CentralSkillsView />} />
         {/* Skill detail page */}
         <Route path="skill/:skillId" element={<SkillDetailPage />} />
