@@ -1,4 +1,4 @@
-name: Release Desktop
+﻿name: Release Desktop
 
 on:
   push:
@@ -56,7 +56,7 @@ jobs:
       - name: Prepare Windows assets
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
+          $ErrorActionPreference = "Stop"
           $version = $env:GITHUB_REF_NAME -replace '^v', ''
           New-Item -ItemType Directory -Force -Path release-assets | Out-Null
 
