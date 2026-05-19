@@ -93,7 +93,8 @@ pub struct ScanDirectory {
 
 /// Create a production SQLite pool for the given file path with WAL mode enabled.
 pub async fn create_pool(db_path: &str) -> Result<DbPool, String> {
-    let opts = SqliteConnectOptions::from_str(&format!("sqlite://{}", db_path))
+    let normalized = db_path.replace('\\', "/");
+    let opts = SqliteConnectOptions::from_str(&format!("sqlite://{}", normalized))
         .map_err(|e| e.to_string())?
         .create_if_missing(true)
         .journal_mode(SqliteJournalMode::Wal);
@@ -627,7 +628,6 @@ pub fn builtin_agents() -> Vec<Agent> {
     };
 
     vec![
-        // ── Coding platforms ─────────────────────────────────────────────────
         agent(
             "claude-code",
             "Claude Code",
@@ -1010,40 +1010,6 @@ pub fn builtin_agents() -> Vec<Agent> {
         ),
         agent("warp", "Warp", "coding", ".agents/skills", None, "warp"),
         agent("aider", "Aider", "coding", ".aider/skills", None, "aider"),
-        // ── Lobster platforms ────────────────────────────────────────────────
-        agent(
-            "hermes",
-            "Hermes",
-            "lobster",
-            ".hermes/skills",
-            None,
-            "hermes",
-        ),
-        agent(
-            "openclaw",
-            "OpenClaw",
-            "lobster",
-            ".openclaw/skills",
-            Some("skills"),
-            "openclaw",
-        ),
-        agent("qclaw", "QClaw", "lobster", ".qclaw/skills", None, "qclaw"),
-        agent(
-            "easyclaw",
-            "EasyClaw",
-            "lobster",
-            ".easyclaw/skills",
-            None,
-            "easyclaw",
-        ),
-        agent(
-            "autoclaw",
-            "AutoClaw",
-            "lobster",
-            ".openclaw-autoclaw/skills",
-            None,
-            "autoclaw",
-        ),
         agent(
             "workbuddy",
             "WorkBuddy",
@@ -1060,7 +1026,6 @@ pub fn builtin_agents() -> Vec<Agent> {
             None,
             "qoderwork",
         ),
-        // ── Central Skills ────────────────────────────────────────────────────
         agent(
             "central",
             "Central Skills",
@@ -2178,69 +2143,17 @@ mod tests {
         );
 
         let ids: Vec<&str> = agents.iter().map(|a| a.id.as_str()).collect();
-        // Coding platforms
         assert!(ids.contains(&"claude-code"));
         assert!(ids.contains(&"codex"));
         assert!(ids.contains(&"cursor"));
-        assert!(ids.contains(&"antigravity"));
-        assert!(ids.contains(&"cline"));
-        assert!(ids.contains(&"deep-agents"));
-        assert!(ids.contains(&"dexto"));
-        assert!(ids.contains(&"firebender"));
-        assert!(ids.contains(&"gemini-cli"));
-        assert!(ids.contains(&"kimi-code-cli"));
-        assert!(ids.contains(&"trae"));
-        assert!(ids.contains(&"factory-droid"));
-        assert!(ids.contains(&"junie"));
-        assert!(ids.contains(&"qwen"));
-        assert!(ids.contains(&"trae-cn"));
-        assert!(ids.contains(&"windsurf"));
-        assert!(ids.contains(&"qoder"));
-        assert!(ids.contains(&"augment"));
-        assert!(ids.contains(&"opencode"));
-        assert!(ids.contains(&"kilocode"));
-        assert!(ids.contains(&"ob1"));
-        assert!(ids.contains(&"amp"));
-        assert!(ids.contains(&"kiro"));
-        assert!(ids.contains(&"codebuddy"));
-        assert!(ids.contains(&"aider-desk"));
-        assert!(ids.contains(&"bob"));
-        assert!(ids.contains(&"codearts-agent"));
-        assert!(ids.contains(&"codemaker"));
-        assert!(ids.contains(&"codestudio"));
-        assert!(ids.contains(&"command-code"));
-        assert!(ids.contains(&"continue"));
-        assert!(ids.contains(&"cortex"));
-        assert!(ids.contains(&"crush"));
-        assert!(ids.contains(&"devin"));
-        assert!(ids.contains(&"forgecode"));
-        assert!(ids.contains(&"goose"));
-        assert!(ids.contains(&"iflow-cli"));
-        assert!(ids.contains(&"kode"));
-        assert!(ids.contains(&"mcpjam"));
-        assert!(ids.contains(&"mistral-vibe"));
-        assert!(ids.contains(&"mux"));
-        assert!(ids.contains(&"openhands"));
-        assert!(ids.contains(&"pi"));
-        assert!(ids.contains(&"rovodev"));
-        assert!(ids.contains(&"roo"));
-        assert!(ids.contains(&"tabnine-cli"));
-        assert!(ids.contains(&"zencoder"));
-        assert!(ids.contains(&"neovate"));
-        assert!(ids.contains(&"pochi"));
-        assert!(ids.contains(&"adal"));
-        assert!(ids.contains(&"hermes"));
-        assert!(ids.contains(&"copilot"));
-        assert!(ids.contains(&"warp"));
-        assert!(ids.contains(&"aider"));
-        // Lobster platforms
-        assert!(ids.contains(&"openclaw"));
-        assert!(ids.contains(&"qclaw"));
-        assert!(ids.contains(&"easyclaw"));
-        assert!(ids.contains(&"autoclaw"));
         assert!(ids.contains(&"workbuddy"));
-        // Central
+        assert!(ids.contains(&"qoderwork"));
         assert!(ids.contains(&"central"));
+        assert!(!ids.contains(&"hermes"));
+        assert!(!ids.contains(&"openclaw"));
+        assert!(!ids.contains(&"qclaw"));
+        assert!(!ids.contains(&"easyclaw"));
+        assert!(!ids.contains(&"autoclaw"));
     }
 
     #[test]
@@ -2266,7 +2179,6 @@ mod tests {
                 ".claude/skills",
                 ".claude/skills",
             ),
-            ("openclaw", "OpenClaw", ".openclaw/skills", "skills"),
             (
                 "codearts-agent",
                 "CodeArts Agent",
@@ -2400,6 +2312,8 @@ mod tests {
         assert!(!agents_by_id.contains_key("qwen-code"));
         assert!(!agents_by_id.contains_key("kilo"));
         assert!(!agents_by_id.contains_key("kiro-cli"));
+        assert!(!agents_by_id.contains_key("hermes"));
+        assert!(!agents_by_id.contains_key("openclaw"));
     }
 
     #[tokio::test]
